@@ -33,8 +33,8 @@ Episode Alerts is a React Native mobile application that helps you track your fa
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/EpisodeAlerts.git
-   cd EpisodeAlertMobileApp/EpisodeAlerts
+   git clone https://github.com/TheGhossst/EpisodeAlerts-MobileApp.git
+   cd EpisodeAlerts-MobileApp
    ```
 
 2. Install dependencies:
