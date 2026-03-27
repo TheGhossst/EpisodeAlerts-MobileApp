@@ -1,5 +1,3 @@
-import { TMDB_API_KEY } from '@env';
-
 export const TMDB_CONFIG = {
   BASE_URL: 'https://api.themoviedb.org/3',
   IMAGE_BASE_URL: 'https://image.tmdb.org/t/p',
@@ -17,7 +15,8 @@ export const TMDB_CONFIG = {
   }
 };
 
-export const API_KEY = TMDB_API_KEY || '';
+const env = process.env;
+export const API_KEY = env.EXPO_PUBLIC_TMDB_API_KEY || env.TMDB_API_KEY || '';
 
 if (!API_KEY) {
   console.warn('TMDB API key not found in environment variables. API requests will fail.');

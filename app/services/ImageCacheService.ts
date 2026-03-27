@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -84,7 +84,7 @@ class ImageCacheService {
         const downloadResult = await FileSystem.downloadAsync(url, filePath);
         
         // Update cache size with file size
-        const fileInfo = await FileSystem.getInfoAsync(filePath, { size: true });
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
         if (fileInfo.exists && fileInfo.size) {
           await this.updateCacheSize(fileInfo.size);
         }
@@ -131,7 +131,7 @@ class ImageCacheService {
       
       for (const filename of files) {
         const filePath = IMAGE_CACHE_DIR + filename;
-        const fileInfo = await FileSystem.getInfoAsync(filePath, { size: true });
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
         
         if (fileInfo.exists) {
           // Get file modification time (not directly available in Expo FileSystem)
@@ -186,7 +186,7 @@ class ImageCacheService {
 
   public async calculateCacheSize(): Promise<number> {
     try {
-      const dirInfo = await FileSystem.getInfoAsync(IMAGE_CACHE_DIR, { size: true });
+      const dirInfo = await FileSystem.getInfoAsync(IMAGE_CACHE_DIR);
       
       if (dirInfo.exists && dirInfo.isDirectory) {
         this.cacheSize = dirInfo.size || 0;

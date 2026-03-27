@@ -10,6 +10,8 @@ const NOTIFICATION_SCHEDULE_KEY = '@EpisodeAlerts:notificationSchedule';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -164,11 +166,14 @@ class NotificationService {
             episodeId: show.next_episode_to_air.id
           },
         },
-        trigger: null,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: notificationDate,
+        },
         identifier: notificationId,
       });
 
-      console.log(`Scheduled immediate notification for testing purposes`);
+      console.log(`Scheduled notification for ${notificationDate.toISOString()}`);
 
       const newNotification: ScheduledNotification = {
         id: notificationId,

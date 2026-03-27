@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Image, View, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import ImageCacheService from '@/app/services/ImageCacheService';
 import { useTheme } from '@/app/context/ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';

@@ -46,7 +46,7 @@ Episode Alerts is a React Native mobile application that helps you track your fa
 
 3. Create a `.env` file in the root directory and add your TMDB API key:
    ```
-   TMDB_API_KEY=your_tmdb_api_key_here
+   EXPO_PUBLIC_TMDB_API_KEY=your_tmdb_api_key_here
    ```
 
 4. Start the development server:
@@ -111,10 +111,10 @@ Episode Alerts uses The Movie Database (TMDB) API to fetch TV show data. To use 
 The application uses environment variables for security and configuration:
 
 ```
-TMDB_API_KEY=your_tmdb_api_key_here
+EXPO_PUBLIC_TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
-This key is loaded using `react-native-dotenv` and should never be committed to your repository. The `.env` file is already added to `.gitignore`.
+This key is loaded via Expo's built-in public environment variable support and should never be committed to your repository. The `.env` file is already added to `.gitignore`.
 
 ## 📱 Usage
 
@@ -188,7 +188,7 @@ Analytics are opt-in and can be disabled in the Settings screen.
 - **React Navigation**: Navigation between screens
 - **Reanimated**: Smooth animations throughout the app
 - **Linear Gradient**: Gradient effects for UI components
-- **React Native Dotenv**: Environment variable management
+- **Expo Public Environment Variables**: Environment variable management
 
 ## 🚀 Building for Production
 
@@ -217,23 +217,15 @@ To create a production build:
 
 ### For Local Builds
 
-#### Android
+If you need local native builds, use EAS local mode:
 
-1. Run the build command:
-   ```bash
-   expo build:android
-   ```
+```bash
+# Android local build
+eas build --platform android --local
 
-2. Choose between APK and AAB format when prompted.
-
-#### iOS
-
-1. Run the build command:
-   ```bash
-   expo build:ios
-   ```
-
-2. Follow the prompts to generate an iOS build.
+# iOS local build (macOS only)
+eas build --platform ios --local
+```
 
 ## 🔍 Troubleshooting
 
