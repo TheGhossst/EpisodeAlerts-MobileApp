@@ -8,8 +8,10 @@ import {
 import TMDBService, { TVShow } from '@/app/services/TMDBService';
 import SearchBar from '@/app/components/search/SearchBar';
 import SearchResultsList from '@/app/components/search/SearchResultsList';
+import { useTheme } from '@/app/context/ThemeContext';
 
 export default function SearchScreen() {
+  const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<TVShow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,17 +39,17 @@ export default function SearchScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <SearchBar value={searchQuery} onChangeText={handleSearch} />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <SearchBar value={searchQuery} onChangeText={handleSearch} theme={theme} />
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e50914" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       ) : error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
       ) : (
-        <SearchResultsList results={results} searchQuery={searchQuery} />
+        <SearchResultsList results={results} searchQuery={searchQuery} theme={theme} />
       )}
     </View>
   );
@@ -56,7 +58,6 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
   },
   loadingContainer: {
     flex: 1,
@@ -64,7 +65,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: '#e50914',
     textAlign: 'center',
     marginTop: 24,
     fontSize: 16,

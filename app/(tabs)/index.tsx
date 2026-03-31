@@ -162,9 +162,9 @@ export default function HomeScreen() {
     if (error) {
       return (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#e74c3c" />
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={loadData}>
+          <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
+          <Text style={[styles.errorText, { color: theme.colors.text }]}>{error}</Text>
+          <Pressable style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={loadData}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
         </View>
@@ -217,9 +217,14 @@ export default function HomeScreen() {
 
           {recentlyViewedShows.length > 0 && (
             <Link href="/watchlist" asChild>
-              <Pressable style={styles.watchlistCtaButton}>
-                <Text style={styles.watchlistCtaText}>View My Watchlist</Text>
-                <Feather name="chevron-right" size={16} color="#fff" />
+              <Pressable
+                style={StyleSheet.flatten([
+                  styles.watchlistCtaButton,
+                  { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+                ])}
+              >
+                <Text style={[styles.watchlistCtaText, { color: theme.colors.text }]}>View My Watchlist</Text>
+                <Feather name="chevron-right" size={16} color={theme.colors.text} />
               </Pressable>
             </Link>
           )}
@@ -236,7 +241,7 @@ export default function HomeScreen() {
         }}
       />
 
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -245,9 +250,9 @@ export default function HomeScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor="#fff"
-              colors={['#fff']}
-              progressBackgroundColor="rgba(0,0,0,0.2)"
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+              progressBackgroundColor={theme.colors.card}
             />
           }
         >
@@ -263,7 +268,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090b13',
   },
   scrollView: {
     flex: 1,
@@ -286,14 +290,12 @@ const styles = StyleSheet.create({
     marginTop: 100,
   },
   errorText: {
-    color: '#fff',
     fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#3d85c6',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 4,
@@ -304,7 +306,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   watchlistCtaButton: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -314,7 +316,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   watchlistCtaText: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
     marginRight: 6,

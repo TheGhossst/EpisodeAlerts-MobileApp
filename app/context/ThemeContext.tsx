@@ -74,6 +74,36 @@ const LightTheme: Theme = {
   },
 };
 
+const resolveTheme = (
+  mode: ThemeType,
+  systemColorScheme: ReturnType<typeof useColorScheme>
+): Theme => {
+  const prefersDark = systemColorScheme === 'dark';
+
+  if (mode === 'system') {
+    const base = prefersDark ? DarkTheme : LightTheme;
+    return {
+      dark: base.dark,
+      mode: 'system',
+      colors: { ...base.colors },
+    };
+  }
+
+  if (mode === 'dark') {
+    return {
+      dark: true,
+      mode: 'dark',
+      colors: { ...DarkTheme.colors },
+    };
+  }
+
+  return {
+    dark: false,
+    mode: 'light',
+    colors: { ...LightTheme.colors },
+  };
+};
+
 interface ThemeContextType {
   theme: Theme;
   setTheme: (mode: ThemeType) => Promise<void>;
@@ -92,10 +122,8 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const systemColorScheme = useColorScheme();
-  
-  const initialTheme = systemColorScheme === 'dark' ? DarkTheme : LightTheme;
-  
-  const [theme, setThemeState] = useState<Theme>(initialTheme);
+
+  const [theme, setThemeState] = useState<Theme>(resolveTheme('system', systemColorScheme));
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   
   useEffect(() => {
@@ -103,7 +131,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       try {
         await UserPreferencesService.initialize();
         const userThemeMode = UserPreferencesService.getTheme();
-        await updateTheme(userThemeMode);
+        setThemeState(resolveTheme(userThemeMode, systemColorScheme));
         setIsInitialized(true);
       } catch (error) {
         console.error('Error initializing theme:', error);
@@ -116,27 +144,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   
   useEffect(() => {
     if (isInitialized && theme.mode === 'system') {
-      const newTheme = systemColorScheme === 'dark' ? DarkTheme : LightTheme;
-      newTheme.mode = 'system';
-      setThemeState(newTheme);
+      setThemeState(resolveTheme('system', systemColorScheme));
     }
   }, [systemColorScheme, isInitialized, theme.mode]);
   
   const updateTheme = async (mode: ThemeType) => {
     try {
-      let newTheme: Theme;
-      
-      if (mode === 'system') {
-        newTheme = systemColorScheme === 'dark' ? DarkTheme : LightTheme;
-        newTheme.mode = 'system';
-      } else if (mode === 'dark') {
-        newTheme = DarkTheme;
-      } else {
-        newTheme = LightTheme;
-      }
-      
-      setThemeState(newTheme);
-      
+      setThemeState(resolveTheme(mode, systemColorScheme));
       await UserPreferencesService.setTheme(mode);
     } catch (error) {
       console.error('Error updating theme:', error);

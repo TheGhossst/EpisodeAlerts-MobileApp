@@ -3,9 +3,11 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Link } from 'expo-router';
 import { TVShow } from '@/app/services/TMDBService';
 import { TMDB_CONFIG } from '@/constants/Config';
+import type { Theme } from '@/app/context/ThemeContext';
 
 interface SearchResultItemProps {
   item: TVShow;
+  theme: Theme;
 }
 
 const getPosterUrl = (path: string | null) => {
@@ -16,10 +18,10 @@ const getPosterUrl = (path: string | null) => {
   return `${TMDB_CONFIG.IMAGE_BASE_URL}/${TMDB_CONFIG.POSTER_SIZES.SMALL}${path}`;
 };
 
-export default function SearchResultItem({ item }: SearchResultItemProps) {
+export default function SearchResultItem({ item, theme }: SearchResultItemProps) {
   return (
     <Link href={{ pathname: '/show-details', params: { id: item.id } }} asChild>
-      <TouchableOpacity style={styles.resultItem}>
+      <TouchableOpacity style={StyleSheet.flatten([styles.resultItem, { backgroundColor: theme.colors.card }])}> 
         {item.poster_path ? (
           <Image
             source={{ uri: getPosterUrl(item.poster_path) }}
@@ -27,20 +29,20 @@ export default function SearchResultItem({ item }: SearchResultItemProps) {
             resizeMode="cover"
           />
         ) : (
-          <View style={styles.noPoster}>
-            <Text style={styles.noPosterText}>No Image</Text>
+          <View style={[styles.noPoster, { backgroundColor: theme.colors.surface }]}> 
+            <Text style={[styles.noPosterText, { color: theme.colors.textSecondary }]}>No Image</Text>
           </View>
         )}
 
         <View style={styles.itemInfo}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1} ellipsizeMode="tail">
             {item.name}
           </Text>
-          <Text style={styles.year}>
+          <Text style={[styles.year, { color: theme.colors.textSecondary }]}>
             {item.first_air_date ? item.first_air_date.split('-')[0] : 'N/A'}
           </Text>
           <View style={styles.ratingContainer}>
-            <Text style={styles.rating}>★ {item.vote_average?.toFixed(1)}</Text>
+            <Text style={[styles.rating, { color: theme.colors.primary }]}>★ {item.vote_average?.toFixed(1)}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -52,7 +54,6 @@ const styles = StyleSheet.create({
   resultItem: {
     flexDirection: 'row',
     marginBottom: 16,
-    backgroundColor: '#1a1a1a',
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -63,12 +64,10 @@ const styles = StyleSheet.create({
   noPoster: {
     width: 80,
     height: 120,
-    backgroundColor: '#2a2a2a',
     justifyContent: 'center',
     alignItems: 'center',
   },
   noPosterText: {
-    color: '#666666',
     fontSize: 12,
   },
   itemInfo: {
@@ -77,13 +76,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   year: {
-    color: '#999999',
     fontSize: 14,
     marginBottom: 4,
   },
@@ -92,7 +89,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rating: {
-    color: '#e50914',
     fontSize: 14,
     fontWeight: 'bold',
   },

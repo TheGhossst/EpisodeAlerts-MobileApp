@@ -28,8 +28,8 @@ export default function HomeShowSection({
   return (
     <Animated.View entering={FadeInDown.duration(400)} style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <Feather name="chevron-right" size={20} color="#fff" />
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>
+        <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
       </View>
 
       <ScrollView
@@ -65,7 +65,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },

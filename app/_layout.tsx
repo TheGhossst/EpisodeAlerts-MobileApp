@@ -1,12 +1,15 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import {
+  DarkTheme as NavigationDarkTheme,
+  DefaultTheme as NavigationDefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+} from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-
-import { useColorScheme } from '@/components/useColorScheme';
+import { ThemeProvider as AppThemeProvider, useTheme } from '@/app/context/ThemeContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -42,18 +45,48 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AppThemeProvider>
+      <RootLayoutNav />
+    </AppThemeProvider>
+  );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { theme } = useTheme();
+
+  const navigationTheme = theme.dark
+    ? {
+        ...NavigationDarkTheme,
+        colors: {
+          ...NavigationDarkTheme.colors,
+          primary: theme.colors.primary,
+          background: theme.colors.background,
+          card: theme.colors.card,
+          text: theme.colors.text,
+          border: theme.colors.border,
+          notification: theme.colors.accent,
+        },
+      }
+    : {
+        ...NavigationDefaultTheme,
+        colors: {
+          ...NavigationDefaultTheme.colors,
+          primary: theme.colors.primary,
+          background: theme.colors.background,
+          card: theme.colors.card,
+          text: theme.colors.text,
+          border: theme.colors.border,
+          notification: theme.colors.accent,
+        },
+      };
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <NavigationThemeProvider value={navigationTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
-    </ThemeProvider>
+    </NavigationThemeProvider>
   );
 }

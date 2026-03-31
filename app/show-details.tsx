@@ -378,7 +378,7 @@ export default function ShowDetailsScreen() {
         style={[styles.nextEpisodeCard, { backgroundColor: theme.colors.card }]}
         entering={FadeInDown.duration(500).delay(300)}
       >
-        <View style={styles.nextEpisodeHeader}>
+        <View style={[styles.nextEpisodeHeader, { borderBottomColor: theme.colors.border }]}> 
           <Text style={[styles.nextEpisodeTitle, { color: theme.colors.text }]}>
             Next Episode
           </Text>
@@ -682,6 +682,9 @@ export default function ShowDetailsScreen() {
     );
   }
 
+  const backdropOverlayColor = theme.dark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
+  const backButtonColor = theme.dark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.75)';
+
   return (
     <>
       <Stack.Screen
@@ -703,15 +706,15 @@ export default function ShowDetailsScreen() {
               resizeMode="cover"
             />
             <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.7)', theme.colors.background]}
+              colors={['transparent', backdropOverlayColor, theme.colors.background]}
               style={styles.backdropGradient}
             />
             
             <TouchableOpacity 
-              style={styles.backButton}
+              style={[styles.backButton, { backgroundColor: backButtonColor }]}
               onPress={handleBackPress}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name="arrow-back" size={24} color={theme.dark ? '#FFFFFF' : theme.colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -799,7 +802,7 @@ export default function ShowDetailsScreen() {
                 </Text>
               </Animated.View>
             )}
-            
+
             {renderNextEpisode()}
             {renderLastEpisode()}
             {renderWatchProgress()}
@@ -875,7 +878,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -996,7 +998,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   nextEpisodeTitle: {
     fontSize: 18,
