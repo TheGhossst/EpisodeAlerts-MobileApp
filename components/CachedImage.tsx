@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Image, View, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
 import ImageCacheService from '@/app/services/ImageCacheService';
 import { useTheme } from '@/app/context/ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -28,63 +27,54 @@ const CachedImage: React.FC<CachedImageProps> = ({
   const [hasError, setHasError] = useState(false);
   
   useEffect(() => {
+    let isActive = true;
+
     const loadImage = async () => {
       try {
         // Reset state when URI changes
-        setIsLoading(true);
-        setHasError(false);
+        if (isActive) {
+          setIsLoading(true);
+          setHasError(false);
+        }
         
         if (!uri) {
-          setHasError(true);
-          setIsLoading(false);
+          if (isActive) {
+            setHasError(true);
+            setIsLoading(false);
+          }
           return;
         }
         
         if (!ImageCacheService.isImageCacheEnabled()) {
-          setCachedUri(uri);
-          setIsLoading(false);
+          if (isActive) {
+            setCachedUri(uri);
+            setIsLoading(false);
+          }
           return;
         }
-        
-        const filename = uri.substring(uri.lastIndexOf('/') + 1);
-        const cacheDir = `${FileSystem.cacheDirectory}images/`;
-        const cacheFilePath = `${cacheDir}${filename}`;
-        
-        const dirInfo = await FileSystem.getInfoAsync(cacheDir);
-        if (!dirInfo.exists) {
-          await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true });
-        }
-        
-        const fileInfo = await FileSystem.getInfoAsync(cacheFilePath);
-        
-        if (fileInfo.exists) {
-          setCachedUri(fileInfo.uri);
-        } else {
-          // Download and cache file
-          const downloadResult = await FileSystem.downloadAsync(uri, cacheFilePath);
-          if (downloadResult.status === 200) {
-            setCachedUri(downloadResult.uri);
-          } else {
-            // If download fails, use original URI
-            setCachedUri(uri);
-          }
+
+        const cached = await ImageCacheService.getCachedImageUri(uri);
+        if (isActive) {
+          setCachedUri(cached);
         }
       } catch (error) {
         console.error('Error caching image:', error, uri);
         // Fallback to original URI on error
-        setCachedUri(uri);
-        setHasError(true);
+        if (isActive) {
+          setCachedUri(uri);
+          setHasError(true);
+        }
       } finally {
-        setIsLoading(false);
+        if (isActive) {
+          setIsLoading(false);
+        }
       }
     };
 
     loadImage();
     
-    // Cleanup function
     return () => {
-      // Cancel download if component unmounts
-      // No specific cleanup needed here, but this is where it would go
+      isActive = false;
     };
   }, [uri]);
 

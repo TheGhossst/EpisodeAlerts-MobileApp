@@ -16,6 +16,7 @@ import {
 import { useLocalSearchParams, Stack, Link, router } from 'expo-router';
 import TMDBService, { TVShow, Season, Episode } from '@/app/services/TMDBService';
 import WatchlistService from '@/app/services/WatchlistService';
+import type { LastWatchedEpisode } from '@/app/services/WatchlistService';
 import NotificationService from '@/app/services/NotificationService';
 import AnalyticsService, { EventType } from '@/app/services/AnalyticsService';
 import { TMDB_CONFIG } from '@/constants/Config';
@@ -42,6 +43,7 @@ export default function ShowDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [notificationEnabled, setNotificationEnabled] = useState(false);
+  const [lastWatchedEpisode, setLastWatchedEpisode] = useState<LastWatchedEpisode | null>(null);
 
   const loadData = useCallback(async () => {
     if (!id) {
@@ -95,6 +97,9 @@ export default function ShowDetailsScreen() {
 
       const status = await WatchlistService.isInWatchlist(showId);
       setIsInWatchlist(status);
+
+      const lastWatched = await WatchlistService.getLastWatchedEpisode(showId);
+      setLastWatchedEpisode(lastWatched);
 
       setNotificationEnabled(NotificationService.isNotificationsEnabled());
     } catch (err) {
@@ -184,6 +189,48 @@ export default function ShowDetailsScreen() {
     }
   };
 
+  const handleSetLastWatchedEpisode = async (episode: Episode) => {
+    if (!show) return;
+
+    let wasAddedToWatchlist = false;
+    if (!isInWatchlist) {
+      const addSuccess = await WatchlistService.addToWatchlist(show);
+      if (addSuccess || (await WatchlistService.isInWatchlist(show.id))) {
+        setIsInWatchlist(true);
+        wasAddedToWatchlist = true;
+      }
+    }
+
+    const success = await WatchlistService.setLastWatchedEpisode(show.id, show.name, episode);
+    if (!success) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to save progress. Please try again.',
+        position: 'bottom',
+      });
+      return;
+    }
+
+    setLastWatchedEpisode({
+      showId: show.id,
+      showName: show.name,
+      seasonNumber: episode.season_number,
+      episodeNumber: episode.episode_number,
+      episodeName: episode.name,
+      watchedAt: Date.now(),
+    });
+
+    Toast.show({
+      type: 'success',
+      text1: 'Progress updated',
+      text2: wasAddedToWatchlist
+        ? `Added to watchlist and set to S${episode.season_number}E${episode.episode_number}`
+        : `Last watched set to S${episode.season_number}E${episode.episode_number}`,
+      position: 'bottom',
+    });
+  };
+
   const scheduleNotification = async () => {
     if (!show || !show.next_episode_to_air) return;
     
@@ -231,6 +278,35 @@ export default function ShowDetailsScreen() {
       month: 'short', 
       day: 'numeric' 
     });
+  };
+
+  const getEpisodeStatusText = (airDate: string) => {
+    if (!airDate) return 'TBA';
+
+    const normalizedAirDate = airDate.split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    if (normalizedAirDate !== today) {
+      return `Airs on ${formatDate(normalizedAirDate)}`;
+    }
+
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+    const difference = endOfDay.getTime() - now.getTime();
+
+    if (difference <= 0) {
+      return 'Aired';
+    }
+
+    const hours = Math.floor(difference / (1000 * 60 * 60));
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `Airs in ${hours}h ${minutes}m`;
+    }
+
+    return `Airs in ${Math.max(minutes, 1)}m`;
   };
 
   const formatRuntime = (minutes?: number) => {
@@ -321,7 +397,7 @@ export default function ShowDetailsScreen() {
               {episode.name}
             </Text>
             <Text style={[styles.nextEpisodeDate, { color: theme.colors.textSecondary }]}>
-              Airs on {formatDate(episode.air_date)}
+              {getEpisodeStatusText(episode.air_date)}
             </Text>
           </View>
           
@@ -378,6 +454,28 @@ export default function ShowDetailsScreen() {
             />
           )}
         </View>
+      </Animated.View>
+    );
+  };
+
+  const renderWatchProgress = () => {
+    if (!lastWatchedEpisode) return null;
+
+    return (
+      <Animated.View
+        style={[styles.progressCard, { backgroundColor: theme.colors.card }]}
+        entering={FadeInDown.duration(500).delay(450)}
+      >
+        <Text style={[styles.progressTitle, { color: theme.colors.text }]}>Your Progress</Text>
+        <Text style={[styles.progressMeta, { color: theme.colors.textSecondary }]}>
+          Last watched: Season {lastWatchedEpisode.seasonNumber} · Episode {lastWatchedEpisode.episodeNumber}
+        </Text>
+        <Text style={[styles.progressEpisodeName, { color: theme.colors.text }]} numberOfLines={2}>
+          {lastWatchedEpisode.episodeName}
+        </Text>
+        <Text style={[styles.progressHint, { color: theme.colors.textSecondary }]}>
+          Next episode to watch: S{lastWatchedEpisode.seasonNumber}E{lastWatchedEpisode.episodeNumber + 1}
+        </Text>
       </Animated.View>
     );
   };
@@ -462,6 +560,52 @@ export default function ShowDetailsScreen() {
                           {episode.overview}
                         </Text>
                       ) : null}
+
+                      <TouchableOpacity
+                        style={[
+                          styles.markWatchedButton,
+                          {
+                            backgroundColor:
+                              lastWatchedEpisode?.showId === show.id &&
+                              lastWatchedEpisode?.seasonNumber === episode.season_number &&
+                              lastWatchedEpisode?.episodeNumber === episode.episode_number
+                                ? theme.colors.primary
+                                : theme.colors.secondary,
+                          },
+                        ]}
+                        onPress={() => handleSetLastWatchedEpisode(episode)}
+                      >
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color={
+                            lastWatchedEpisode?.showId === show.id &&
+                            lastWatchedEpisode?.seasonNumber === episode.season_number &&
+                            lastWatchedEpisode?.episodeNumber === episode.episode_number
+                              ? '#FFFFFF'
+                              : theme.colors.text
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.markWatchedText,
+                            {
+                              color:
+                                lastWatchedEpisode?.showId === show.id &&
+                                lastWatchedEpisode?.seasonNumber === episode.season_number &&
+                                lastWatchedEpisode?.episodeNumber === episode.episode_number
+                                  ? '#FFFFFF'
+                                  : theme.colors.text,
+                            },
+                          ]}
+                        >
+                          {lastWatchedEpisode?.showId === show.id &&
+                          lastWatchedEpisode?.seasonNumber === episode.season_number &&
+                          lastWatchedEpisode?.episodeNumber === episode.episode_number
+                            ? 'Last Watched'
+                            : 'Mark as Last Watched'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   ))
                 ) : (
@@ -658,6 +802,7 @@ export default function ShowDetailsScreen() {
             
             {renderNextEpisode()}
             {renderLastEpisode()}
+            {renderWatchProgress()}
             {renderSeasons()}
             {renderCreators()}
           </Animated.View>
@@ -921,6 +1066,28 @@ const styles = StyleSheet.create({
   lastEpisodeDate: {
     fontSize: 14,
   },
+  progressCard: {
+    borderRadius: 12,
+    marginBottom: 24,
+    padding: 16,
+  },
+  progressTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  progressMeta: {
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  progressEpisodeName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  progressHint: {
+    fontSize: 13,
+  },
   lastEpisodeImage: {
     width: 120,
     height: 68,
@@ -1004,6 +1171,20 @@ const styles = StyleSheet.create({
   episodeOverview: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  markWatchedButton: {
+    marginTop: 10,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  markWatchedText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   loadingEpisodes: {
     padding: 20,

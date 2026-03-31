@@ -12,3 +12,8 @@ export type MainTabParamList = {
   Search: undefined;
   Watchlist: undefined;
 }; 
+
+// This file is a shared type module; return null if Expo Router treats it as a route.
+export default function NavigationTypesRoute() {
+  return null;
+}

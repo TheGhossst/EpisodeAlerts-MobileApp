@@ -12,9 +12,10 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import { Link, useFocusEffect, Stack } from 'expo-router';
+import { Link, useFocusEffect, Stack, router } from 'expo-router';
 import { TVShow, Genre } from '@/app/services/TMDBService';
 import WatchlistService from '@/app/services/WatchlistService';
+import type { LastWatchedEpisode } from '@/app/services/WatchlistService';
 import { TMDB_CONFIG } from '@/constants/Config';
 import { useTheme } from '@/app/context/ThemeContext';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -28,7 +29,7 @@ import CachedImage from '@/components/CachedImage';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
-const CARD_ASPECT_RATIO = 1.5;
+const CARD_ASPECT_RATIO = 1.62;
 const CARD_HEIGHT = CARD_WIDTH * CARD_ASPECT_RATIO;
 
 type SortOption = 'name' | 'date_added' | 'next_episode';
@@ -56,6 +57,7 @@ export default function WatchlistScreen() {
   const [isSortModalVisible, setIsSortModalVisible] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [upcomingShows, setUpcomingShows] = useState<TVShow[]>([]);
+  const [lastWatchedMap, setLastWatchedMap] = useState<Record<string, LastWatchedEpisode>>({});
 
   useFocusEffect(
     useCallback(() => {
@@ -101,8 +103,12 @@ export default function WatchlistScreen() {
     try {
       setIsLoading(true);
       setError(null);
-      const shows = await WatchlistService.getWatchlist();
+      const [shows, progressMap] = await Promise.all([
+        WatchlistService.getWatchlist(),
+        WatchlistService.getLastWatchedEpisodes(),
+      ]);
       setWatchlist(shows);
+      setLastWatchedMap(progressMap);
     } catch (err) {
       console.error('Error loading watchlist:', err);
       setError('Failed to load your watchlist. Please try again.');
@@ -324,6 +330,7 @@ export default function WatchlistScreen() {
 
   const renderWatchlistItem = ({ item, index }: { item: TVShow, index: number }) => {
     const hasNextEpisode = !!item.next_episode_to_air;
+    const lastWatched = lastWatchedMap[String(item.id)];
     
     return (
       <Animated.View 
@@ -356,26 +363,57 @@ export default function WatchlistScreen() {
                 </View>
               </View>
               
-              {hasNextEpisode && item.next_episode_to_air && (
-                <View style={styles.episodeInfo}>
-                  <View style={styles.episodeHeader}>
-                    <Text style={styles.nextEpisodeLabel}>Next Episode</Text>
-                    <Text style={styles.episodeNumber}>{formatEpisodeText(item.next_episode_to_air)}</Text>
-                  </View>
-                  
-                  <Text style={styles.episodeTitle} numberOfLines={1}>
-                    {item.next_episode_to_air.name}
+              <View style={styles.episodeInfo}>
+                <Text style={[styles.cardShowTitle, { color: theme.colors.text }]} numberOfLines={2}>
+                  {item.name}
+                </Text>
+
+                {lastWatched ? (
+                  <Text style={[styles.resumeText, { color: theme.colors.primary }]} numberOfLines={1}>
+                    Resume from S{lastWatched.seasonNumber}E{lastWatched.episodeNumber}
                   </Text>
-                  
-                  <Text style={styles.episodeDate}>
-                    {item.next_episode_to_air.air_date}
+                ) : (
+                  <Text style={[styles.noProgressText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                    No progress tracked yet
                   </Text>
-                  
-                  <View style={styles.countdownContainer}>
-                    <CountdownTimer airDate={item.next_episode_to_air.air_date} />
-                  </View>
-                </View>
-              )}
+                )}
+
+                {hasNextEpisode && item.next_episode_to_air ? (
+                  <>
+                    <View style={styles.episodeHeader}>
+                      <Text style={[styles.nextEpisodeLabel, { color: theme.colors.textSecondary }]}>Next Episode</Text>
+                      <Text style={[styles.episodeNumber, { backgroundColor: theme.colors.primary }]}>
+                        {formatEpisodeText(item.next_episode_to_air)}
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.episodeTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                      {item.next_episode_to_air.name}
+                    </Text>
+
+                    <Text style={[styles.episodeDate, { color: theme.colors.textSecondary }]}>
+                      {item.next_episode_to_air.air_date}
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.countdownContainer,
+                        {
+                          backgroundColor: theme.dark
+                            ? 'rgba(255,255,255,0.08)'
+                            : 'rgba(0,0,0,0.06)',
+                        },
+                      ]}
+                    >
+                      <CountdownTimer airDate={item.next_episode_to_air.air_date} />
+                    </View>
+                  </>
+                ) : (
+                  <Text style={[styles.noUpcomingText, { color: theme.colors.textSecondary }]}>
+                    No upcoming episodes scheduled
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
           </Link>
         </TouchableOpacity>
@@ -416,7 +454,7 @@ export default function WatchlistScreen() {
     }, [airDate]);
     
     return (
-      <Text style={styles.countdownText}>{timeLeft}</Text>
+      <Text style={[styles.countdownText, { color: theme.colors.primary }]}>{timeLeft}</Text>
     );
   };
 
@@ -641,14 +679,7 @@ export default function WatchlistScreen() {
           
           <TouchableOpacity 
             style={[styles.addButton, { backgroundColor: theme.colors.card }]}
-            onPress={() => {
-              Toast.show({
-                type: 'info',
-                text1: 'Add Shows',
-                text2: 'Search for shows to add to your watchlist',
-                position: 'bottom',
-              });
-            }}
+            onPress={() => router.push('/search')}
           >
             <Ionicons name="add" size={20} color={theme.colors.text} />
             <Text style={[styles.addButtonText, { color: theme.colors.text }]}>Add Shows</Text>
@@ -689,7 +720,10 @@ export default function WatchlistScreen() {
               </Text>
               <Link href="/search" asChild>
                 <TouchableOpacity 
-                  style={[styles.emptyStateButton, { backgroundColor: theme.colors.primary }]}
+                  style={StyleSheet.flatten([
+                    styles.emptyStateButton,
+                    { backgroundColor: theme.colors.primary },
+                  ])}
                 >
                   <Text style={styles.emptyStateButtonText}>Discover Shows</Text>
                 </TouchableOpacity>
@@ -816,7 +850,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     height: CARD_HEIGHT,
   },
@@ -824,7 +858,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardImageContainer: {
-    height: '60%',
+    height: '52%',
     position: 'relative',
   },
   cardImage: {
@@ -854,46 +888,68 @@ const styles = StyleSheet.create({
     left: 8,
   },
   episodeInfo: {
-    padding: 10,
-    height: '40%',
-    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 12,
+    height: '48%',
+    justifyContent: 'flex-start',
+  },
+  cardShowTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  resumeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  noProgressText: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 8,
+    opacity: 0.85,
   },
   episodeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
   nextEpisodeLabel: {
     fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.7,
+    fontWeight: '600',
   },
   episodeNumber: {
     fontSize: 12,
     color: '#FFFFFF',
     fontWeight: 'bold',
-    backgroundColor: 'rgba(230, 30, 40, 0.8)',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 3,
+    borderRadius: 4,
   },
   episodeTitle: {
     fontSize: 14,
-    color: '#FFFFFF',
     fontWeight: 'bold',
+    marginBottom: 2,
   },
   episodeDate: {
     fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.7,
+    marginBottom: 8,
   },
   countdownContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    paddingVertical: 6,
   },
   countdownText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+  },
+  noUpcomingText: {
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   emptyState: {
     alignItems: 'center',

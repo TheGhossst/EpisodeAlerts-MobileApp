@@ -159,3 +159,5 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 export const useTheme = () => useContext(ThemeContext);
 
 export { DarkTheme, LightTheme }; 
+
+export default ThemeProvider;

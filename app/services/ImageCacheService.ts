@@ -1,9 +1,8 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import { Directory, File, Paths } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 const IMAGE_CACHE_ENABLED_KEY = '@EpisodeAlerts:imageCacheEnabled';
-const IMAGE_CACHE_DIR = FileSystem.cacheDirectory + 'images/';
+const IMAGE_CACHE_DIR = new Directory(Paths.cache, 'images');
 const MAX_CACHE_SIZE = 100 * 1024 * 1024; // 100MB
 
 type CacheFileInfo = {
@@ -31,9 +30,8 @@ class ImageCacheService {
 
   private async setupCacheDirectory() {
     try {
-      const dirInfo = await FileSystem.getInfoAsync(IMAGE_CACHE_DIR);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(IMAGE_CACHE_DIR, { intermediates: true });
+      if (!IMAGE_CACHE_DIR.exists) {
+        IMAGE_CACHE_DIR.create({ intermediates: true, idempotent: true });
       }
     } catch (error) {
       console.error('Error setting up cache directory:', error);
@@ -71,26 +69,24 @@ class ImageCacheService {
     try {
       // Create a unique filename based on the URL
       const filename = this.getFilenameFromUrl(url);
-      const filePath = IMAGE_CACHE_DIR + filename;
+      const cachedFile = new File(IMAGE_CACHE_DIR, filename);
       
       // Check if the file exists in cache
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
-      
-      if (fileInfo.exists) {
-        // Return the cached file URI
-        return fileInfo.uri;
-      } else {
-        // Download and cache the image
-        const downloadResult = await FileSystem.downloadAsync(url, filePath);
-        
-        // Update cache size with file size
-        const fileInfo = await FileSystem.getInfoAsync(filePath);
-        if (fileInfo.exists && fileInfo.size) {
-          await this.updateCacheSize(fileInfo.size);
-        }
-        
-        return downloadResult.uri;
+      if (cachedFile.exists) {
+        return cachedFile.uri;
       }
+      
+      // Download and cache the image
+      const downloadResult = await File.downloadFileAsync(url, cachedFile, {
+        idempotent: true,
+      });
+
+      // Update cache size with file size
+      if (downloadResult.exists && downloadResult.size) {
+        await this.updateCacheSize(downloadResult.size);
+      }
+
+      return downloadResult.uri;
     } catch (error) {
       console.error('Error caching image:', error);
       return url;
@@ -120,7 +116,9 @@ class ImageCacheService {
   private async trimCache(): Promise<void> {
     try {
       // Get all files in the cache directory
-      const files = await FileSystem.readDirectoryAsync(IMAGE_CACHE_DIR);
+      const files = IMAGE_CACHE_DIR.exists
+        ? IMAGE_CACHE_DIR.list().filter((entry): entry is File => entry instanceof File)
+        : [];
       
       if (files.length === 0) {
         return;
@@ -129,21 +127,16 @@ class ImageCacheService {
       // Get file info with creation time
       const fileInfos: CacheFileInfo[] = [];
       
-      for (const filename of files) {
-        const filePath = IMAGE_CACHE_DIR + filename;
-        const fileInfo = await FileSystem.getInfoAsync(filePath);
-        
-        if (fileInfo.exists) {
-          // Get file modification time (not directly available in Expo FileSystem)
-          // Using a workaround with current time and random offset for demo purposes
-          const modTime = Date.now() - (Math.random() * 86400000); // Random time in last 24h
-          
-          fileInfos.push({
-            uri: fileInfo.uri,
-            size: fileInfo.size || 0,
-            modificationTime: modTime,
-          });
+      for (const file of files) {
+        if (!file.exists) {
+          continue;
         }
+
+        fileInfos.push({
+          uri: file.uri,
+          size: file.size || 0,
+          modificationTime: file.modificationTime || 0,
+        });
       }
       
       // Sort files by our simulated modification time (oldest first)
@@ -158,7 +151,7 @@ class ImageCacheService {
           break;
         }
         
-        await FileSystem.deleteAsync(fileInfo.uri);
+        new File(fileInfo.uri).delete();
         currentSize -= fileInfo.size;
       }
       
@@ -171,11 +164,9 @@ class ImageCacheService {
 
   public async clearCache(): Promise<void> {
     try {
-      const dirInfo = await FileSystem.getInfoAsync(IMAGE_CACHE_DIR);
-      
-      if (dirInfo.exists) {
-        await FileSystem.deleteAsync(IMAGE_CACHE_DIR, { idempotent: true });
-        await FileSystem.makeDirectoryAsync(IMAGE_CACHE_DIR, { intermediates: true });
+      if (IMAGE_CACHE_DIR.exists) {
+        IMAGE_CACHE_DIR.delete();
+        IMAGE_CACHE_DIR.create({ intermediates: true, idempotent: true });
       }
       
       this.cacheSize = 0;
@@ -186,10 +177,8 @@ class ImageCacheService {
 
   public async calculateCacheSize(): Promise<number> {
     try {
-      const dirInfo = await FileSystem.getInfoAsync(IMAGE_CACHE_DIR);
-      
-      if (dirInfo.exists && dirInfo.isDirectory) {
-        this.cacheSize = dirInfo.size || 0;
+      if (IMAGE_CACHE_DIR.exists) {
+        this.cacheSize = IMAGE_CACHE_DIR.size || 0;
       } else {
         this.cacheSize = 0;
       }
