@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { TVShow, Genre } from '@/app/services/TMDBService';
 import WatchlistService from '@/app/services/WatchlistService';
+import NotificationService from '@/app/services/NotificationService';
 import type { LastWatchedEpisode } from '@/app/services/WatchlistService';
 import AnalyticsService, { EventType } from '@/app/services/AnalyticsService';
 import { useTheme } from '@/app/context/ThemeContext';
@@ -93,6 +94,9 @@ export default function WatchlistScreen() {
         WatchlistService.getWatchlist(),
         WatchlistService.getLastWatchedEpisodes(),
       ]);
+
+      await NotificationService.syncWatchlistReleaseNotifications(shows);
+
       setWatchlist(shows);
       setLastWatchedMap(progressMap);
     } catch (err) {

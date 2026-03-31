@@ -1,11 +1,15 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
-import { TVShow } from './TMDBService';
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import TMDBService, { TVShow, Episode } from "./TMDBService";
+import WatchlistService from "./WatchlistService";
 
-const NOTIFICATIONS_ENABLED_KEY = '@EpisodeAlerts:notificationsEnabled';
-const NOTIFICATION_SCHEDULE_KEY = '@EpisodeAlerts:notificationSchedule';
+const NOTIFICATIONS_ENABLED_KEY = "@EpisodeAlerts:notificationsEnabled";
+const NOTIFICATION_SCHEDULE_KEY = "@EpisodeAlerts:notificationSchedule";
+const NOTIFIED_RELEASE_EPISODES_KEY = "@EpisodeAlerts:notifiedReleaseEpisodes";
+const RELEASE_CHECK_LAST_RUN_KEY = "@EpisodeAlerts:releaseCheckLastRun";
+const RELEASE_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -30,6 +34,7 @@ interface ScheduledNotification {
 class NotificationService {
   private static instance: NotificationService;
   private isEnabled: boolean = false;
+  private lastReleaseCheckAt: number = 0;
 
   private constructor() {}
 
@@ -42,8 +47,10 @@ class NotificationService {
 
   public async initialize(): Promise<boolean> {
     try {
-      const notificationsEnabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-      this.isEnabled = notificationsEnabled === 'true';
+      const notificationsEnabled = await AsyncStorage.getItem(
+        NOTIFICATIONS_ENABLED_KEY,
+      );
+      this.isEnabled = notificationsEnabled === "true";
 
       if (this.isEnabled) {
         await this.requestPermissions();
@@ -51,7 +58,7 @@ class NotificationService {
 
       return this.isEnabled;
     } catch (error) {
-      console.error('Error initializing notifications:', error);
+      console.error("Error initializing notifications:", error);
       return false;
     }
   }
@@ -59,37 +66,38 @@ class NotificationService {
   public async requestPermissions(): Promise<boolean> {
     try {
       if (!Device.isDevice) {
-        console.log('Notifications are not available in simulator/emulator');
+        console.log("Notifications are not available in simulator/emulator");
         return false;
       }
 
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
-      if (existingStatus !== 'granted') {
+      if (existingStatus !== "granted") {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
 
-      if (finalStatus !== 'granted') {
-        console.log('Permission not granted for notifications');
+      if (finalStatus !== "granted") {
+        console.log("Permission not granted for notifications");
         this.isEnabled = false;
-        await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, 'false');
+        await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, "false");
         return false;
       }
 
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('episode-alerts', {
-          name: 'Episode Alerts',
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("episode-alerts", {
+          name: "Episode Alerts",
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
+          lightColor: "#FF231F7C",
         });
       }
 
       return true;
     } catch (error) {
-      console.error('Error requesting notification permissions:', error);
+      console.error("Error requesting notification permissions:", error);
       return false;
     }
   }
@@ -108,7 +116,7 @@ class NotificationService {
         await this.cancelAllNotifications();
       }
     } catch (error) {
-      console.error('Error setting notification enabled state:', error);
+      console.error("Error setting notification enabled state:", error);
       throw error;
     }
   }
@@ -117,8 +125,14 @@ class NotificationService {
     return this.isEnabled;
   }
 
-  public async scheduleEpisodeNotification(show: TVShow): Promise<string | null> {
-    if (!this.isEnabled || !show.next_episode_to_air || !show.next_episode_to_air.air_date) {
+  public async scheduleEpisodeNotification(
+    show: TVShow,
+  ): Promise<string | null> {
+    if (
+      !this.isEnabled ||
+      !show.next_episode_to_air ||
+      !show.next_episode_to_air.air_date
+    ) {
       return null;
     }
 
@@ -127,7 +141,7 @@ class NotificationService {
       const now = new Date();
 
       if (airDate < now) {
-        console.log('Episode has already aired, not scheduling notification');
+        console.log("Episode has already aired, not scheduling notification");
         return null;
       }
 
@@ -135,7 +149,7 @@ class NotificationService {
       const notificationDate = new Date(airDate);
       notificationDate.setDate(notificationDate.getDate() - 1);
       notificationDate.setHours(18, 0, 0, 0); // 6:00 PM
-      
+
       // If the notification date has already passed, use the air date itself
       if (notificationDate < now) {
         notificationDate.setTime(airDate.getTime());
@@ -144,26 +158,27 @@ class NotificationService {
 
       const scheduledNotifications = await this.getScheduledNotifications();
       const existingNotification = scheduledNotifications.find(
-        n => n.showId === show.id && 
-             n.seasonNumber === show.next_episode_to_air!.season_number &&
-             n.episodeNumber === show.next_episode_to_air!.episode_number
+        (n) =>
+          n.showId === show.id &&
+          n.seasonNumber === show.next_episode_to_air!.season_number &&
+          n.episodeNumber === show.next_episode_to_air!.episode_number,
       );
 
       if (existingNotification) {
-        console.log('Notification already scheduled for this episode');
+        console.log("Notification already scheduled for this episode");
         return existingNotification.id;
       }
 
       // Create a unique ID for this notification
       const notificationId = `${show.id}-S${show.next_episode_to_air.season_number}-E${show.next_episode_to_air.episode_number}`;
-      
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: `New Episode Alert: ${show.name}`,
           body: `${show.next_episode_to_air.name} (S${show.next_episode_to_air.season_number}E${show.next_episode_to_air.episode_number}) airs soon!`,
           data: {
             showId: show.id,
-            episodeId: show.next_episode_to_air.id
+            episodeId: show.next_episode_to_air.id,
           },
         },
         trigger: {
@@ -173,7 +188,9 @@ class NotificationService {
         identifier: notificationId,
       });
 
-      console.log(`Scheduled notification for ${notificationDate.toISOString()}`);
+      console.log(
+        `Scheduled notification for ${notificationDate.toISOString()}`,
+      );
 
       const newNotification: ScheduledNotification = {
         id: notificationId,
@@ -188,8 +205,79 @@ class NotificationService {
       await this.saveScheduledNotification(newNotification);
       return notificationId;
     } catch (error) {
-      console.error('Error scheduling episode notification:', error);
+      console.error("Error scheduling episode notification:", error);
       return null;
+    }
+  }
+
+  public async syncWatchlistReleaseNotifications(
+    watchlistOverride?: TVShow[],
+  ): Promise<void> {
+    if (!this.isEnabled) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastReleaseCheckAt < RELEASE_CHECK_MIN_INTERVAL_MS) {
+      return;
+    }
+
+    this.lastReleaseCheckAt = now;
+
+    try {
+      const watchlist =
+        watchlistOverride ?? (await WatchlistService.getWatchlist());
+      if (watchlist.length === 0) {
+        await AsyncStorage.setItem(RELEASE_CHECK_LAST_RUN_KEY, now.toString());
+        return;
+      }
+
+      const lastRunRaw = await AsyncStorage.getItem(RELEASE_CHECK_LAST_RUN_KEY);
+      const hasLastRun = !!lastRunRaw;
+      const lastRun = hasLastRun ? Number(lastRunRaw) : now;
+      const notifiedMap = await this.getNotifiedReleaseEpisodesMap();
+
+      for (const watchlistShow of watchlist) {
+        const details = await TMDBService.getTVShowDetails(
+          watchlistShow.id,
+        ).catch(() => null);
+        if (!details) {
+          continue;
+        }
+
+        await this.scheduleEpisodeNotification(details);
+
+        if (!hasLastRun || !details.last_episode_to_air) {
+          continue;
+        }
+
+        const releasedEpisode = details.last_episode_to_air;
+        if (!this.hasEpisodeAired(releasedEpisode)) {
+          continue;
+        }
+
+        const episodeReleaseTime =
+          this.getEpisodeReleaseTimestamp(releasedEpisode);
+        if (episodeReleaseTime <= lastRun || episodeReleaseTime > now) {
+          continue;
+        }
+
+        const notifiedKey = this.getEpisodeNotificationKey(
+          details.id,
+          releasedEpisode,
+        );
+        if (notifiedMap[notifiedKey]) {
+          continue;
+        }
+
+        await this.sendEpisodeLiveNotification(details, releasedEpisode);
+        notifiedMap[notifiedKey] = now;
+      }
+
+      await this.saveNotifiedReleaseEpisodesMap(notifiedMap);
+      await AsyncStorage.setItem(RELEASE_CHECK_LAST_RUN_KEY, now.toString());
+    } catch (error) {
+      console.error("Error syncing watchlist release notifications:", error);
     }
   }
 
@@ -198,17 +286,21 @@ class NotificationService {
 
     try {
       const scheduledNotifications = await this.getScheduledNotifications();
-      const showNotifications = scheduledNotifications.filter(n => n.showId === showId);
-      
+      const showNotifications = scheduledNotifications.filter(
+        (n) => n.showId === showId,
+      );
+
       for (const notification of showNotifications) {
         await Notifications.cancelScheduledNotificationAsync(notification.id);
         console.log(`Canceled notification: ${notification.id}`);
       }
 
-      const updatedNotifications = scheduledNotifications.filter(n => n.showId !== showId);
+      const updatedNotifications = scheduledNotifications.filter(
+        (n) => n.showId !== showId,
+      );
       await this.saveScheduledNotifications(updatedNotifications);
     } catch (error) {
-      console.error('Error canceling show notifications:', error);
+      console.error("Error canceling show notifications:", error);
       throw error;
     }
   }
@@ -217,10 +309,73 @@ class NotificationService {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
       await AsyncStorage.removeItem(NOTIFICATION_SCHEDULE_KEY);
-      console.log('All notifications canceled');
+      console.log("All notifications canceled");
     } catch (error) {
-      console.error('Error canceling all notifications:', error);
+      console.error("Error canceling all notifications:", error);
       throw error;
+    }
+  }
+
+  private getEpisodeNotificationKey(showId: number, episode: Episode): string {
+    return `${showId}-S${episode.season_number}-E${episode.episode_number}`;
+  }
+
+  private getEpisodeReleaseTimestamp(episode: Episode): number {
+    if (!episode.air_date) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
+    return new Date(`${episode.air_date}T00:00:00`).getTime();
+  }
+
+  private hasEpisodeAired(episode: Episode): boolean {
+    const releaseTime = this.getEpisodeReleaseTimestamp(episode);
+    return releaseTime <= Date.now();
+  }
+
+  private async sendEpisodeLiveNotification(
+    show: TVShow,
+    episode: Episode,
+  ): Promise<void> {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `${show.name}: New episode is live`,
+        body: `${episode.name} (S${episode.season_number}E${episode.episode_number}) is live. Go watch it!`,
+        data: {
+          showId: show.id,
+          episodeId: episode.id,
+          seasonNumber: episode.season_number,
+          episodeNumber: episode.episode_number,
+        },
+      },
+      trigger: null,
+    });
+  }
+
+  private async getNotifiedReleaseEpisodesMap(): Promise<
+    Record<string, number>
+  > {
+    try {
+      const jsonValue = await AsyncStorage.getItem(
+        NOTIFIED_RELEASE_EPISODES_KEY,
+      );
+      return jsonValue ? JSON.parse(jsonValue) : {};
+    } catch (error) {
+      console.error("Error loading notified release episodes:", error);
+      return {};
+    }
+  }
+
+  private async saveNotifiedReleaseEpisodesMap(
+    map: Record<string, number>,
+  ): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        NOTIFIED_RELEASE_EPISODES_KEY,
+        JSON.stringify(map),
+      );
+    } catch (error) {
+      console.error("Error saving notified release episodes:", error);
     }
   }
 
@@ -230,29 +385,39 @@ class NotificationService {
       const jsonValue = await AsyncStorage.getItem(NOTIFICATION_SCHEDULE_KEY);
       return jsonValue ? JSON.parse(jsonValue) : [];
     } catch (error) {
-      console.error('Error getting scheduled notifications:', error);
+      console.error("Error getting scheduled notifications:", error);
       return [];
     }
   }
 
   // Save a scheduled notification
-  private async saveScheduledNotification(notification: ScheduledNotification): Promise<void> {
+  private async saveScheduledNotification(
+    notification: ScheduledNotification,
+  ): Promise<void> {
     try {
       const notifications = await this.getScheduledNotifications();
-      const updatedNotifications = [...notifications.filter(n => n.id !== notification.id), notification];
+      const updatedNotifications = [
+        ...notifications.filter((n) => n.id !== notification.id),
+        notification,
+      ];
       await this.saveScheduledNotifications(updatedNotifications);
     } catch (error) {
-      console.error('Error saving scheduled notification:', error);
+      console.error("Error saving scheduled notification:", error);
       throw error;
     }
   }
 
   // Save all scheduled notifications
-  private async saveScheduledNotifications(notifications: ScheduledNotification[]): Promise<void> {
+  private async saveScheduledNotifications(
+    notifications: ScheduledNotification[],
+  ): Promise<void> {
     try {
-      await AsyncStorage.setItem(NOTIFICATION_SCHEDULE_KEY, JSON.stringify(notifications));
+      await AsyncStorage.setItem(
+        NOTIFICATION_SCHEDULE_KEY,
+        JSON.stringify(notifications),
+      );
     } catch (error) {
-      console.error('Error saving scheduled notifications:', error);
+      console.error("Error saving scheduled notifications:", error);
       throw error;
     }
   }

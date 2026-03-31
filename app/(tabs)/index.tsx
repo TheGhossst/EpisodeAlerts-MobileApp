@@ -10,6 +10,7 @@ import {
 import TMDBService, { TVShow } from '@/app/services/TMDBService';
 import { useTheme } from '@/app/context/ThemeContext';
 import WatchlistService from '@/app/services/WatchlistService';
+import NotificationService from '@/app/services/NotificationService';
 import Toast from 'react-native-toast-message';
 import AnalyticsService, { EventType } from '@/app/services/AnalyticsService';
 import { SkeletonBanner, SkeletonList } from '@/app/components/SkeletonLoader';
@@ -56,6 +57,8 @@ export default function HomeScreen() {
     try {
       const watchlistShows = await WatchlistService.getWatchlist();
       setWatchlist(watchlistShows.map((show) => show.id));
+
+      await NotificationService.syncWatchlistReleaseNotifications(watchlistShows);
 
       if (watchlistShows.length > 0) {
         setRecentlyViewedShows(watchlistShows.slice(0, 3));
