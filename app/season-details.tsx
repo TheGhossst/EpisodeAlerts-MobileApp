@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -7,87 +7,112 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-} from 'react-native';
-import { useLocalSearchParams, Stack, Link, router } from 'expo-router';
-import TMDBService, { Season, Episode } from '@/app/services/TMDBService';
-import { TMDB_CONFIG } from '@/constants/Config';
-import CachedImage from '@/components/CachedImage';
+} from "react-native";
+import { useLocalSearchParams, Stack, router } from "expo-router";
+import TMDBService, { Season, Episode } from "@/app/services/TMDBService";
+import { TMDB_CONFIG } from "@/constants/Config";
+import CachedImage from "@/components/CachedImage";
+import { useTheme } from "@/app/context/ThemeContext";
+import AnalyticsService from "@/app/services/AnalyticsService";
+import StaleDataIndicator from "@/app/components/StaleDataIndicator";
+import { useNetworkStatus } from "@/app/context/NetworkStatusContext";
 
 export default function SeasonDetailsScreen() {
+  const { theme } = useTheme();
+  const { isOffline } = useNetworkStatus();
   const { id, season } = useLocalSearchParams<{ id: string; season: string }>();
   const [seasonDetails, setSeasonDetails] = useState<Season | null>(null);
-  const [showName, setShowName] = useState<string>('');
+  const [showName, setShowName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUsingStaleData, setIsUsingStaleData] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
-  const loadData = useCallback(async () => {
-    if (!id || !season) {
-      setError('Missing required parameters. Please go back and try again.');
-      setIsLoading(false);
-      setIsRefreshing(false);
-      return;
-    }
-
-    try {
-      const showId = parseInt(id);
-      const seasonNumber = parseInt(season);
-      
-      if (isNaN(showId) || isNaN(seasonNumber)) {
-        throw new Error('Invalid show ID or season number');
+  const loadData = useCallback(
+    async (isManualRefresh = false) => {
+      if (!id || !season) {
+        setError("Missing required parameters. Please go back and try again.");
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
       }
 
-      setError(null);
-      
-      if (!isRefreshing) {
-        setIsLoading(true);
+      try {
+        const showId = parseInt(id, 10);
+        const seasonNumber = parseInt(season, 10);
+
+        if (isNaN(showId) || isNaN(seasonNumber)) {
+          throw new Error("Invalid show ID or season number");
+        }
+
+        setError(null);
+
+        if (!isManualRefresh) {
+          setIsLoading(true);
+        }
+
+        const [details, showDetails] = await Promise.all([
+          TMDBService.getSeasonDetails(showId, seasonNumber),
+          TMDBService.getTVShowDetails(showId),
+        ]);
+
+        setSeasonDetails(details);
+        setShowName(showDetails.name);
+
+        await AnalyticsService.trackScreenView("season-details", {
+          showId: showId.toString(),
+          seasonNumber: seasonNumber.toString(),
+        });
+
+        setIsUsingStaleData(TMDBService.consumeStaleFallbackFlag());
+        setLastUpdatedAt(TMDBService.getLastCachedDataUpdatedAt());
+      } catch (err) {
+        console.error("Error loading season details:", err);
+        setError(
+          isOffline
+            ? "You are offline and this season is not available in cache yet."
+            : "Failed to load season details. Please try again.",
+        );
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-
-      // Load season details
-      const details = await TMDBService.getSeasonDetails(showId, seasonNumber);
-      setSeasonDetails(details);
-
-      // Load show name
-      const showDetails = await TMDBService.getTVShowDetails(showId);
-      setShowName(showDetails.name);
-    } catch (err) {
-      console.error('Error loading season details:', err);
-      setError('Failed to load season details. Please try again.');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [id, season]);
+    },
+    [id, season, isOffline],
+  );
 
   useEffect(() => {
-    loadData();
+    void loadData(false);
   }, [loadData]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    loadData();
+    void loadData(true);
   };
 
   const getImageUrl = (path: string | null) => {
-    if (!path) return '';
+    if (!path) {
+      return "";
+    }
+
     return `${TMDB_CONFIG.IMAGE_BASE_URL}/${TMDB_CONFIG.POSTER_SIZES.MEDIUM}${path}`;
   };
 
   const handleImageError = () => {
-    console.error('Image failed to load');
-    // We could set a state here to show a fallback image
+    console.error("Image failed to load");
   };
 
   const handleBackPress = () => {
     if (id) {
-      router.push({ pathname: '/show-details', params: { id } });
+      router.push({ pathname: "/show-details", params: { id } });
     } else {
       router.back();
     }
   };
 
   const renderEpisode = ({ item }: { item: Episode }) => (
-    <View style={styles.episodeCard}>
+    <View style={[styles.episodeCard, { backgroundColor: theme.colors.card }]}>
       {item.still_path ? (
         <CachedImage
           uri={getImageUrl(item.still_path)}
@@ -96,28 +121,50 @@ export default function SeasonDetailsScreen() {
           onError={handleImageError}
         />
       ) : (
-        <View style={styles.noImage}>
-          <Text style={styles.noImageText}>No Image</Text>
+        <View
+          style={[styles.noImage, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text
+            style={[styles.noImageText, { color: theme.colors.textSecondary }]}
+          >
+            No Image
+          </Text>
         </View>
       )}
 
       <View style={styles.episodeInfo}>
-        <Text style={styles.episodeNumber}>
+        <Text style={[styles.episodeNumber, { color: theme.colors.primary }]}>
           Episode {item.episode_number}
         </Text>
-        <Text style={styles.episodeName}>{item.name || 'Untitled Episode'}</Text>
-        <Text style={styles.episodeDate}>
-          {item.air_date || 'Air date unknown'}
+        <Text style={[styles.episodeName, { color: theme.colors.text }]}>
+          {item.name || "Untitled Episode"}
+        </Text>
+        <Text
+          style={[styles.episodeDate, { color: theme.colors.textSecondary }]}
+        >
+          {item.air_date || "Air date unknown"}
         </Text>
         {item.overview ? (
-          <Text style={styles.episodeOverview} numberOfLines={2}>
+          <Text
+            style={[
+              styles.episodeOverview,
+              { color: theme.colors.textSecondary },
+            ]}
+            numberOfLines={2}
+          >
             {item.overview}
           </Text>
         ) : (
-          <Text style={styles.noOverview}>No overview available</Text>
+          <Text
+            style={[styles.noOverview, { color: theme.colors.textSecondary }]}
+          >
+            No overview available
+          </Text>
         )}
         <View style={styles.ratingContainer}>
-          <Text style={styles.rating}>★ {item.vote_average?.toFixed(1) || 'N/A'}</Text>
+          <Text style={[styles.rating, { color: theme.colors.primary }]}>
+            ★ {item.vote_average?.toFixed(1) || "N/A"}
+          </Text>
         </View>
       </View>
     </View>
@@ -125,20 +172,46 @@ export default function SeasonDetailsScreen() {
 
   if (isLoading && !isRefreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#e50914" />
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   if (error || !seasonDetails) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error || 'Season details not found'}</Text>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Text style={styles.backButtonText}>Back to Show</Text>
+      <View
+        style={[
+          styles.errorContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>
+          {error || "Season details not found"}
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            { backgroundColor: theme.colors.secondary },
+          ]}
+          onPress={handleBackPress}
+        >
+          <Text style={[styles.backButtonText, { color: theme.colors.text }]}>
+            Back to Show
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+        <TouchableOpacity
+          style={[
+            styles.retryButton,
+            { backgroundColor: theme.colors.primary },
+          ]}
+          onPress={() => void loadData(false)}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -151,13 +224,15 @@ export default function SeasonDetailsScreen() {
         options={{
           title: `${showName}: ${seasonDetails.name}`,
           headerStyle: {
-            backgroundColor: '#1a1a1a',
+            backgroundColor: theme.colors.card,
           },
-          headerTintColor: '#ffffff',
+          headerTintColor: theme.colors.text,
         }}
       />
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <View style={[styles.header, { backgroundColor: theme.colors.card }]}>
           <View style={styles.seasonInfo}>
             {seasonDetails.poster_path ? (
               <CachedImage
@@ -168,42 +243,81 @@ export default function SeasonDetailsScreen() {
               />
             ) : null}
             <View style={styles.infoContainer}>
-              <Text style={styles.seasonName}>{seasonDetails.name}</Text>
-              <Text style={styles.episodeCount}>
+              <Text style={[styles.seasonName, { color: theme.colors.text }]}>
+                {seasonDetails.name}
+              </Text>
+              <Text
+                style={[
+                  styles.episodeCount,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 {seasonDetails.episodes?.length || 0} Episodes
               </Text>
-              <Text style={styles.airDate}>
-                {seasonDetails.air_date ? `First aired: ${seasonDetails.air_date}` : ''}
+              <Text
+                style={[styles.airDate, { color: theme.colors.textSecondary }]}
+              >
+                {seasonDetails.air_date
+                  ? `First aired: ${seasonDetails.air_date}`
+                  : ""}
               </Text>
             </View>
           </View>
 
           {seasonDetails.overview ? (
             <View style={styles.overviewContainer}>
-              <Text style={styles.overviewTitle}>Season Overview</Text>
-              <Text style={styles.overview}>{seasonDetails.overview}</Text>
+              <Text
+                style={[styles.overviewTitle, { color: theme.colors.text }]}
+              >
+                Season Overview
+              </Text>
+              <Text
+                style={[styles.overview, { color: theme.colors.textSecondary }]}
+              >
+                {seasonDetails.overview}
+              </Text>
             </View>
           ) : null}
         </View>
 
-        <Text style={styles.episodesTitle}>Episodes</Text>
+        {isUsingStaleData ? (
+          <StaleDataIndicator lastUpdatedAt={lastUpdatedAt} />
+        ) : null}
+
+        <Text style={[styles.episodesTitle, { color: theme.colors.text }]}>
+          Episodes
+        </Text>
         <FlatList
           data={seasonDetails.episodes}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderEpisode}
           contentContainerStyle={styles.episodesList}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={() => (
+            <View
+              style={[
+                styles.separator,
+                { backgroundColor: theme.colors.border },
+              ]}
+            />
+          )}
           refreshControl={
-            <RefreshControl 
-              refreshing={isRefreshing} 
+            <RefreshControl
+              refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              colors={['#e50914']}
-              tintColor="#e50914"
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No episodes available</Text>
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                No episodes available
+              </Text>
             </View>
           }
         />
@@ -215,56 +329,49 @@ export default function SeasonDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#121212',
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#121212',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 16,
   },
   errorText: {
-    color: '#e50914',
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#333333',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 4,
     marginBottom: 12,
   },
   backButtonText: {
-    color: '#ffffff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   retryButton: {
-    backgroundColor: '#e50914',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 4,
   },
   retryButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   header: {
     padding: 16,
-    backgroundColor: '#1a1a1a',
+    marginBottom: 10,
   },
   seasonInfo: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 16,
   },
   seasonPoster: {
@@ -275,52 +382,46 @@ const styles = StyleSheet.create({
   infoContainer: {
     marginLeft: 16,
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   seasonName: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   episodeCount: {
     fontSize: 16,
-    color: '#cccccc',
     marginBottom: 4,
   },
   airDate: {
     fontSize: 14,
-    color: '#999999',
   },
   overviewContainer: {
     marginTop: 8,
   },
   overviewTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   overview: {
     fontSize: 14,
-    color: '#cccccc',
     lineHeight: 20,
   },
   episodesTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    margin: 16,
+    fontWeight: "bold",
+    marginHorizontal: 16,
+    marginBottom: 10,
   },
   episodesList: {
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
   episodeCard: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
+    flexDirection: "row",
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   episodeImage: {
     width: 160,
@@ -329,62 +430,53 @@ const styles = StyleSheet.create({
   noImage: {
     width: 160,
     height: 90,
-    backgroundColor: '#2a2a2a',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   noImageText: {
-    color: '#666666',
     fontSize: 12,
   },
   episodeInfo: {
     flex: 1,
-    padding: 12,
+    padding: 10,
   },
   episodeNumber: {
-    fontSize: 12,
-    color: '#e50914',
+    fontSize: 14,
     marginBottom: 4,
+    fontWeight: "700",
   },
   episodeName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
+    fontWeight: "bold",
+    marginBottom: 6,
   },
   episodeDate: {
-    fontSize: 12,
-    color: '#999999',
-    marginBottom: 4,
+    fontSize: 13,
+    marginBottom: 6,
   },
   episodeOverview: {
-    fontSize: 12,
-    color: '#cccccc',
-    marginBottom: 4,
+    fontSize: 13,
+    lineHeight: 18,
   },
   noOverview: {
-    fontSize: 12,
-    color: '#666666',
-    fontStyle: 'italic',
-    marginBottom: 4,
+    fontSize: 13,
+    fontStyle: "italic",
   },
   ratingContainer: {
-    marginTop: 4,
+    marginTop: 6,
   },
   rating: {
-    fontSize: 12,
-    color: '#e50914',
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: "bold",
   },
   separator: {
     height: 12,
   },
   emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
+    paddingVertical: 24,
   },
   emptyText: {
-    color: '#999999',
-    fontSize: 16,
+    fontSize: 14,
   },
-}); 
+});

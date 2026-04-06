@@ -7,12 +7,23 @@ interface BuildSettingsSectionsParams {
   analyticsEnabled: boolean;
   imageCacheEnabled: boolean;
   cacheSizeText: string;
+  cloudSyncAvailable: boolean;
+  cloudSyncSignedIn: boolean;
+  cloudSyncUserEmail: string | null;
+  cloudSyncStatusText: string;
+  isCloudSyncBusy: boolean;
   onThemeChange: (value: ThemeType) => void;
   onNotificationsChange: (value: boolean) => void;
   onImageCacheChange: (value: boolean) => void;
   onAnalyticsChange: (value: boolean) => void;
   onClearImageCache: () => void;
   onResetPreferences: () => void;
+  onViewAnalyticsPress: () => void;
+  onSignInPress: () => void;
+  onSignUpPress: () => void;
+  onSignOutPress: () => void;
+  onSyncUploadPress: () => void;
+  onSyncDownloadPress: () => void;
 }
 
 export const buildSettingsSections = ({
@@ -21,12 +32,23 @@ export const buildSettingsSections = ({
   analyticsEnabled,
   imageCacheEnabled,
   cacheSizeText,
+  cloudSyncAvailable,
+  cloudSyncSignedIn,
+  cloudSyncUserEmail,
+  cloudSyncStatusText,
+  isCloudSyncBusy,
   onThemeChange,
   onNotificationsChange,
   onImageCacheChange,
   onAnalyticsChange,
   onClearImageCache,
   onResetPreferences,
+  onViewAnalyticsPress,
+  onSignInPress,
+  onSignUpPress,
+  onSignOutPress,
+  onSyncUploadPress,
+  onSyncDownloadPress,
 }: BuildSettingsSectionsParams): SettingSection[] => {
   return [
     {
@@ -86,12 +108,85 @@ export const buildSettingsSections = ({
         {
           id: 'analytics',
           title: 'Usage Analytics',
-          description: 'Help improve the app by sharing anonymous usage data',
+          description: 'Store app usage data locally on this device only',
           type: 'toggle',
           value: analyticsEnabled,
           onValueChange: (value) => onAnalyticsChange(value as boolean),
         },
+        {
+          id: 'analyticsInsights',
+          title: 'Analytics Insights',
+          description: 'View your local activity graph',
+          type: 'button',
+          buttonLabel: 'View',
+          onPress: onViewAnalyticsPress,
+        },
       ],
+    },
+    {
+      title: 'Cloud Sync',
+      data: cloudSyncAvailable
+        ? [
+            {
+              id: 'syncAccount',
+              title: 'Account',
+              description: cloudSyncSignedIn
+                ? `Signed in as ${cloudSyncUserEmail || 'user'}`
+                : 'Sign in to sync watchlist and progress across devices',
+              type: 'button',
+              buttonLabel: cloudSyncSignedIn ? 'Signed In' : 'Sign In',
+              onPress: cloudSyncSignedIn ? undefined : onSignInPress,
+              disabled: cloudSyncSignedIn,
+            },
+            {
+              id: 'syncCreateAccount',
+              title: 'Create Account',
+              description: 'Create a cloud account for multi-device sync',
+              type: 'button',
+              buttonLabel: 'Sign Up',
+              onPress: onSignUpPress,
+              disabled: cloudSyncSignedIn,
+            },
+            {
+              id: 'syncStatus',
+              title: 'Last Sync',
+              description: cloudSyncStatusText,
+              type: 'button',
+              buttonLabel: 'Upload',
+              onPress: onSyncUploadPress,
+              buttonIntent: 'primary',
+              disabled: !cloudSyncSignedIn || isCloudSyncBusy,
+            },
+            {
+              id: 'syncDownload',
+              title: 'Restore From Cloud',
+              description: 'Download your watchlist, progress, and preferences',
+              type: 'button',
+              buttonLabel: 'Download',
+              onPress: onSyncDownloadPress,
+              disabled: !cloudSyncSignedIn || isCloudSyncBusy,
+            },
+            {
+              id: 'syncSignOut',
+              title: 'Sign Out',
+              description: 'Stop syncing on this device',
+              type: 'button',
+              buttonLabel: 'Sign Out',
+              onPress: onSignOutPress,
+              buttonIntent: 'danger',
+              disabled: !cloudSyncSignedIn || isCloudSyncBusy,
+            },
+          ]
+        : [
+            {
+              id: 'syncUnavailable',
+              title: 'Cloud Sync Unavailable',
+              description: 'Configure Firebase environment variables to enable sign-in and sync.',
+              type: 'button',
+              buttonLabel: 'Unavailable',
+              disabled: true,
+            },
+          ],
     },
     {
       title: 'About',

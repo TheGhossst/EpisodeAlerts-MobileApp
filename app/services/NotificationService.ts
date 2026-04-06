@@ -10,6 +10,7 @@ const NOTIFICATION_SCHEDULE_KEY = "@EpisodeAlerts:notificationSchedule";
 const NOTIFIED_RELEASE_EPISODES_KEY = "@EpisodeAlerts:notifiedReleaseEpisodes";
 const RELEASE_CHECK_LAST_RUN_KEY = "@EpisodeAlerts:releaseCheckLastRun";
 const RELEASE_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
+const RELEASE_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -35,6 +36,11 @@ class NotificationService {
   private static instance: NotificationService;
   private isEnabled: boolean = false;
   private lastReleaseCheckAt: number = 0;
+  private releaseSyncTimer: ReturnType<typeof setInterval> | null = null;
+  private isReleaseSyncInProgress: boolean = false;
+  private notificationResponseSubscription: Notifications.EventSubscription | null =
+    null;
+  private isInitialResponseHandled = false;
 
   private constructor() {}
 
@@ -111,8 +117,14 @@ class NotificationService {
         const granted = await this.requestPermissions();
         if (!granted) {
           this.isEnabled = false;
+          this.stopReleaseSync();
+          return;
         }
+
+        this.startReleaseSync();
+        await this.runReleaseSyncCycle();
       } else {
+        this.stopReleaseSync();
         await this.cancelAllNotifications();
       }
     } catch (error) {
@@ -123,6 +135,109 @@ class NotificationService {
 
   public isNotificationsEnabled(): boolean {
     return this.isEnabled;
+  }
+
+  public startReleaseSync(intervalMs: number = RELEASE_SYNC_INTERVAL_MS): void {
+    if (!this.isEnabled || this.releaseSyncTimer) {
+      return;
+    }
+
+    this.releaseSyncTimer = setInterval(() => {
+      void this.runReleaseSyncCycle();
+    }, intervalMs);
+
+    void this.runReleaseSyncCycle();
+  }
+
+  private parseShowIdFromNotificationData(data: unknown): number | null {
+    if (!data || typeof data !== "object") {
+      return null;
+    }
+
+    const showIdValue = (data as Record<string, unknown>).showId;
+    if (typeof showIdValue === "number") {
+      return showIdValue;
+    }
+
+    if (typeof showIdValue === "string") {
+      const parsed = Number(showIdValue);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  }
+
+  private handleNotificationResponse(
+    response: Notifications.NotificationResponse | null,
+    onShowPress: (showId: number) => void,
+  ): void {
+    if (!response) {
+      return;
+    }
+
+    const showId = this.parseShowIdFromNotificationData(
+      response.notification.request.content.data,
+    );
+    if (showId) {
+      onShowPress(showId);
+    }
+  }
+
+  public registerNotificationTapHandler(
+    onShowPress: (showId: number) => void,
+  ): () => void {
+    this.unregisterNotificationTapHandler();
+
+    this.notificationResponseSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        this.handleNotificationResponse(response, onShowPress);
+      });
+
+    if (!this.isInitialResponseHandled) {
+      this.isInitialResponseHandled = true;
+      void Notifications.getLastNotificationResponseAsync()
+        .then((response) => {
+          this.handleNotificationResponse(response, onShowPress);
+        })
+        .catch((error) => {
+          console.error("Error reading initial notification response:", error);
+        });
+    }
+
+    return () => {
+      this.unregisterNotificationTapHandler();
+    };
+  }
+
+  public unregisterNotificationTapHandler(): void {
+    if (!this.notificationResponseSubscription) {
+      return;
+    }
+
+    this.notificationResponseSubscription.remove();
+    this.notificationResponseSubscription = null;
+  }
+
+  public stopReleaseSync(): void {
+    if (!this.releaseSyncTimer) {
+      return;
+    }
+
+    clearInterval(this.releaseSyncTimer);
+    this.releaseSyncTimer = null;
+  }
+
+  private async runReleaseSyncCycle(): Promise<void> {
+    if (this.isReleaseSyncInProgress) {
+      return;
+    }
+
+    this.isReleaseSyncInProgress = true;
+    try {
+      await this.syncWatchlistReleaseNotifications();
+    } finally {
+      this.isReleaseSyncInProgress = false;
+    }
   }
 
   public async scheduleEpisodeNotification(

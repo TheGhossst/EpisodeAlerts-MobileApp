@@ -1,0 +1,358 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { Stack, useFocusEffect } from 'expo-router';
+import AnalyticsService, { type AnalyticsEvent } from '@/app/services/AnalyticsService';
+import { useTheme } from '@/app/context/ThemeContext';
+
+const DAILY_WINDOW_DAYS = 7;
+
+interface DailyAnalyticsPoint {
+  key: string;
+  label: string;
+  count: number;
+}
+
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toEventLabel(eventType: string): string {
+  return eventType
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export default function AnalyticsInsightsScreen() {
+  const { theme } = useTheme();
+  const [events, setEvents] = useState<AnalyticsEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadAnalytics = useCallback(async (refresh = false) => {
+    if (refresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    try {
+      await AnalyticsService.initialize();
+      const localEvents = AnalyticsService
+        .getEvents()
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setEvents(localEvents);
+    } catch (error) {
+      console.error('Error loading analytics insights:', error);
+      Alert.alert('Analytics Error', 'Could not load local analytics data.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadAnalytics();
+    }, [loadAnalytics]),
+  );
+
+  const dailySeries = useMemo<DailyAnalyticsPoint[]>(() => {
+    const dayKeys: Array<{ key: string; label: string }> = [];
+    const today = new Date();
+
+    for (let i = DAILY_WINDOW_DAYS - 1; i >= 0; i -= 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      dayKeys.push({
+        key: toDateKey(date),
+        label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      });
+    }
+
+    const eventCountsByDay: Record<string, number> = {};
+    events.forEach((event) => {
+      const parsedDate = new Date(event.timestamp);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return;
+      }
+
+      const key = toDateKey(parsedDate);
+      eventCountsByDay[key] = (eventCountsByDay[key] || 0) + 1;
+    });
+
+    return dayKeys.map((day) => ({
+      key: day.key,
+      label: day.label,
+      count: eventCountsByDay[day.key] || 0,
+    }));
+  }, [events]);
+
+  const maxDailyCount = useMemo(() => {
+    const highest = dailySeries.reduce((max, point) => Math.max(max, point.count), 0);
+    return highest > 0 ? highest : 1;
+  }, [dailySeries]);
+
+  const eventTypeSeries = useMemo(() => {
+    const counts: Record<string, number> = {};
+    events.forEach((event) => {
+      counts[event.type] = (counts[event.type] || 0) + 1;
+    });
+
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([type, count]) => ({ type, count }));
+  }, [events]);
+
+  const maxTypeCount = useMemo(() => {
+    const highest = eventTypeSeries.reduce((max, item) => Math.max(max, item.count), 0);
+    return highest > 0 ? highest : 1;
+  }, [eventTypeSeries]);
+
+  const eventsTodayCount = useMemo(() => {
+    const todayKey = toDateKey(new Date());
+    return events.filter((event) => {
+      const date = new Date(event.timestamp);
+      return !Number.isNaN(date.getTime()) && toDateKey(date) === todayKey;
+    }).length;
+  }, [events]);
+
+  const clearAnalytics = () => {
+    Alert.alert(
+      'Clear Local Analytics',
+      'This removes analytics stored on this device only. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            void AnalyticsService.clearEvents().then(() => loadAnalytics(true));
+          },
+        },
+      ],
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}> 
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Analytics Insights',
+          headerStyle: {
+            backgroundColor: theme.colors.card,
+          },
+          headerTintColor: theme.colors.text,
+        }}
+      />
+
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => {
+              void loadAnalytics(true);
+            }}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
+        <View style={[styles.summaryCard, { backgroundColor: theme.colors.card }]}> 
+          <Text style={[styles.summaryTitle, { color: theme.colors.text }]}>Local Analytics</Text>
+          <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>Total events: {events.length}</Text>
+          <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>Events today: {eventsTodayCount}</Text>
+          <Text style={[styles.summaryHint, { color: theme.colors.textSecondary }]}>Stored on this device only.</Text>
+        </View>
+
+        <View style={[styles.sectionCard, { backgroundColor: theme.colors.card }]}> 
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Last 7 Days</Text>
+          <View style={styles.dailyChartRow}>
+            {dailySeries.map((point) => {
+              const height = point.count > 0 ? Math.max(10, Math.round((point.count / maxDailyCount) * 120)) : 6;
+              return (
+                <View key={point.key} style={styles.dailyChartItem}>
+                  <Text style={[styles.dailyCountLabel, { color: theme.colors.textSecondary }]}>{point.count}</Text>
+                  <View style={[styles.dailyBarTrack, { backgroundColor: theme.colors.border }]}> 
+                    <View
+                      style={[
+                        styles.dailyBarFill,
+                        {
+                          height,
+                          backgroundColor: theme.colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.dailyDayLabel, { color: theme.colors.textSecondary }]}>{point.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={[styles.sectionCard, { backgroundColor: theme.colors.card }]}> 
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Top Event Types</Text>
+          {eventTypeSeries.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No local analytics events yet.</Text>
+          ) : (
+            eventTypeSeries.map((item) => {
+              const widthPercent = Math.max(6, Math.round((item.count / maxTypeCount) * 100));
+              return (
+                <View key={item.type} style={styles.typeRow}>
+                  <Text style={[styles.typeLabel, { color: theme.colors.text }]} numberOfLines={1}>
+                    {toEventLabel(item.type)}
+                  </Text>
+                  <View style={[styles.typeBarTrack, { backgroundColor: theme.colors.border }]}> 
+                    <View style={[styles.typeBarFill, { width: `${widthPercent}%`, backgroundColor: theme.colors.primary }]} />
+                  </View>
+                  <Text style={[styles.typeCount, { color: theme.colors.textSecondary }]}>{item.count}</Text>
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[styles.clearButton, { backgroundColor: theme.colors.error }]}
+          onPress={clearAnalytics}
+        >
+          <Text style={styles.clearButtonText}>Clear Local Analytics</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 28,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryCard: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  summaryHint: {
+    fontSize: 12,
+    marginTop: 8,
+  },
+  sectionCard: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  dailyChartRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  dailyChartItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  dailyCountLabel: {
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  dailyBarTrack: {
+    width: 22,
+    height: 124,
+    borderRadius: 12,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  dailyBarFill: {
+    width: '100%',
+    borderRadius: 12,
+  },
+  dailyDayLabel: {
+    fontSize: 12,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  typeLabel: {
+    width: 120,
+    fontSize: 13,
+    marginRight: 8,
+  },
+  typeBarTrack: {
+    flex: 1,
+    height: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  typeBarFill: {
+    height: '100%',
+    borderRadius: 10,
+  },
+  typeCount: {
+    width: 36,
+    textAlign: 'right',
+    marginLeft: 8,
+    fontSize: 12,
+  },
+  emptyText: {
+    fontSize: 13,
+  },
+  clearButton: {
+    borderRadius: 12,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  clearButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});

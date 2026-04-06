@@ -77,10 +77,10 @@ class AnalyticsService {
       
       // Load cached events
       await this.loadEvents();
+
+      this.initialized = true;
       
       await this.startSession();
-      
-      this.initialized = true;
     } catch (error) {
       console.error('Error initializing analytics service:', error);
     }
@@ -93,13 +93,17 @@ class AnalyticsService {
     
     try {
       const userId = UserPreferencesService.getUserId();
+      const sanitizedData = this.sanitizeEventData(data);
       const event: AnalyticsEvent = {
         id: this.generateId(),
         userId,
         type,
         timestamp: new Date().toISOString(),
-        data,
       };
+
+      if (sanitizedData) {
+        event.data = sanitizedData;
+      }
       
       this.events.push(event);
       
@@ -230,7 +234,24 @@ class AnalyticsService {
     try {
       const eventsJson = await AsyncStorage.getItem(ANALYTICS_STORAGE_KEY);
       if (eventsJson) {
-        this.events = JSON.parse(eventsJson);
+        const parsed = JSON.parse(eventsJson) as AnalyticsEvent[];
+        this.events = Array.isArray(parsed)
+          ? parsed.map((event) => {
+              const normalizedEvent: AnalyticsEvent = {
+                id: event.id,
+                userId: event.userId,
+                type: event.type,
+                timestamp: event.timestamp,
+              };
+
+              const sanitizedData = this.sanitizeEventData(event.data);
+              if (sanitizedData) {
+                normalizedEvent.data = sanitizedData;
+              }
+
+              return normalizedEvent;
+            })
+          : [];
       }
     } catch (error) {
       console.error('Error loading analytics events:', error);
@@ -244,6 +265,46 @@ class AnalyticsService {
     } catch (error) {
       console.error('Error saving analytics events:', error);
     }
+  }
+
+  private sanitizeEventData(data: unknown): Record<string, any> | undefined {
+    const sanitized = this.sanitizeForFirestore(data);
+    if (!sanitized || typeof sanitized !== 'object' || Array.isArray(sanitized)) {
+      return undefined;
+    }
+
+    const record = sanitized as Record<string, any>;
+    return Object.keys(record).length > 0 ? record : undefined;
+  }
+
+  private sanitizeForFirestore(value: unknown): unknown {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === null) {
+      return null;
+    }
+
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => this.sanitizeForFirestore(item))
+        .filter((item) => item !== undefined);
+    }
+
+    if (typeof value === 'object') {
+      const result: Record<string, unknown> = {};
+      Object.entries(value as Record<string, unknown>).forEach(([key, item]) => {
+        const sanitizedItem = this.sanitizeForFirestore(item);
+        if (sanitizedItem !== undefined) {
+          result[key] = sanitizedItem;
+        }
+      });
+
+      return result;
+    }
+
+    return value;
   }
   
   // Generate a unique ID

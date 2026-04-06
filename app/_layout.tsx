@@ -5,11 +5,17 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import 'react-native-reanimated';
 import { ThemeProvider as AppThemeProvider, useTheme } from '@/app/context/ThemeContext';
+import { NetworkStatusProvider } from '@/app/context/NetworkStatusContext';
+import ConnectivityBanner from '@/app/components/ConnectivityBanner';
+import AnalyticsService from '@/app/services/AnalyticsService';
+import CloudSyncService from '@/app/services/CloudSyncService';
+import NotificationService from '@/app/services/NotificationService';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -25,6 +31,7 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [runtimeReady, setRuntimeReady] = useState(false);
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
@@ -36,18 +43,75 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (loaded && runtimeReady) {
+      void SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, runtimeReady]);
 
-  if (!loaded) {
+  useEffect(() => {
+    const initializeRuntimeServices = async () => {
+      try {
+        await Promise.all([
+          AnalyticsService.initialize(),
+          CloudSyncService.initialize(),
+          NotificationService.initialize(),
+        ]);
+        NotificationService.startReleaseSync();
+        CloudSyncService.startAutoSync();
+        await Promise.all([
+          NotificationService.syncWatchlistReleaseNotifications(),
+          CloudSyncService.syncToCloudIfSignedIn(),
+        ]);
+      } catch (error) {
+        console.error('Error initializing runtime services:', error);
+      } finally {
+        setRuntimeReady(true);
+      }
+    };
+
+    void initializeRuntimeServices();
+    const unregisterTapHandler = NotificationService.registerNotificationTapHandler((showId) => {
+      router.push({
+        pathname: '/show-details',
+        params: {
+          id: showId.toString(),
+        },
+      });
+    });
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        CloudSyncService.startAutoSync();
+        void NotificationService.syncWatchlistReleaseNotifications();
+        void CloudSyncService.syncToCloudIfSignedIn();
+        return;
+      }
+
+      if (nextState === 'background' || nextState === 'inactive') {
+        CloudSyncService.stopAutoSync();
+        void CloudSyncService.syncToCloudIfSignedIn();
+      }
+    });
+
+    return () => {
+      appStateSubscription.remove();
+      unregisterTapHandler();
+      NotificationService.stopReleaseSync();
+      CloudSyncService.stopAutoSync();
+      void CloudSyncService.syncToCloudIfSignedIn();
+      void AnalyticsService.endSession();
+    };
+  }, []);
+
+  if (!loaded || !runtimeReady) {
     return null;
   }
 
   return (
     <AppThemeProvider>
-      <RootLayoutNav />
+      <NetworkStatusProvider>
+        <RootLayoutNav />
+      </NetworkStatusProvider>
     </AppThemeProvider>
   );
 }
@@ -83,6 +147,7 @@ function RootLayoutNav() {
 
   return (
     <NavigationThemeProvider value={navigationTheme}>
+      <ConnectivityBanner />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

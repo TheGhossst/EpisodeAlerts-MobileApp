@@ -1,9 +1,10 @@
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Link } from 'expo-router';
 import { TVShow } from '@/app/services/TMDBService';
 import { TMDB_CONFIG } from '@/constants/Config';
 import type { Theme } from '@/app/context/ThemeContext';
+import CachedImage from '@/components/CachedImage';
 
 interface SearchResultItemProps {
   item: TVShow;
@@ -23,8 +24,8 @@ export default function SearchResultItem({ item, theme }: SearchResultItemProps)
     <Link href={{ pathname: '/show-details', params: { id: item.id } }} asChild>
       <TouchableOpacity style={StyleSheet.flatten([styles.resultItem, { backgroundColor: theme.colors.card }])}> 
         {item.poster_path ? (
-          <Image
-            source={{ uri: getPosterUrl(item.poster_path) }}
+          <CachedImage
+            uri={getPosterUrl(item.poster_path) || ''}
             style={styles.poster}
             resizeMode="cover"
           />

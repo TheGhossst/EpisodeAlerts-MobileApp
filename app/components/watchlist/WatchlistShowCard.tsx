@@ -15,6 +15,7 @@ interface WatchlistShowCardProps {
   theme: Theme;
   cardWidth: number;
   cardHeight: number;
+  viewMode: 'grid' | 'list';
   lastWatched?: LastWatchedEpisode;
   onRemove: (showId: number) => void;
 }
@@ -60,6 +61,7 @@ export default function WatchlistShowCard({
   theme,
   cardWidth,
   cardHeight,
+  viewMode,
   lastWatched,
   onRemove,
 }: WatchlistShowCardProps) {
@@ -68,7 +70,7 @@ export default function WatchlistShowCard({
   return (
     <Animated.View
       entering={FadeInDown.delay(index * 100).duration(400)}
-      style={[styles.cardContainer, { width: cardWidth }]}
+      style={[styles.cardContainer, { width: cardWidth }, viewMode === 'list' ? styles.listCardContainer : null]}
     >
       <TouchableOpacity
         activeOpacity={0.8}
@@ -157,6 +159,9 @@ export default function WatchlistShowCard({
 const styles = StyleSheet.create({
   cardContainer: {
     marginBottom: 16,
+  },
+  listCardContainer: {
+    alignSelf: 'center',
   },
   card: {
     borderRadius: 14,

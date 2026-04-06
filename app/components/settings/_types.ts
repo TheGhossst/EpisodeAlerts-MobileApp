@@ -7,6 +7,9 @@ export interface SettingOption {
   options?: { label: string; value: string }[];
   onPress?: () => void;
   onValueChange?: (value: boolean | string) => void;
+  buttonLabel?: string;
+  disabled?: boolean;
+  buttonIntent?: 'default' | 'primary' | 'danger';
 }
 
 export interface SettingSection {

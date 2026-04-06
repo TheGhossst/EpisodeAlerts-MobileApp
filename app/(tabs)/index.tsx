@@ -19,6 +19,7 @@ import { Link, Stack, useFocusEffect } from 'expo-router';
 import HomeFeaturedBanner from '@/app/components/home/HomeFeaturedBanner';
 import HomeShowSection from '@/app/components/home/HomeShowSection';
 import { getAiringTodayStatusText } from '@/app/components/home/_utils';
+import StaleDataIndicator from '@/app/components/StaleDataIndicator';
 
 export default function HomeScreen() {
   const { theme } = useTheme();
@@ -32,6 +33,8 @@ export default function HomeScreen() {
   const [recentlyViewedShows, setRecentlyViewedShows] = useState<TVShow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [clockTick, setClockTick] = useState<number>(Date.now());
+  const [isUsingStaleData, setIsUsingStaleData] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -93,6 +96,9 @@ export default function HomeScreen() {
 
       const airingTodayResponse = await TMDBService.getTVShowsAiringToday();
       setAiringTodayShows(airingTodayResponse.results);
+
+      setIsUsingStaleData(TMDBService.consumeStaleFallbackFlag());
+      setLastUpdatedAt(TMDBService.getLastCachedDataUpdatedAt());
     } catch (err) {
       console.error('Error loading data:', err);
       setError('Failed to load TV show data. Please try again.');
@@ -187,6 +193,8 @@ export default function HomeScreen() {
 
     return (
       <>
+        {isUsingStaleData ? <StaleDataIndicator lastUpdatedAt={lastUpdatedAt} /> : null}
+
         {featuredShow && (
           <HomeFeaturedBanner
             featuredShow={featuredShow}

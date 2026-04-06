@@ -15,6 +15,31 @@ export default function SettingsOptionItem({
   imageCacheEnabled,
 }: SettingsOptionItemProps) {
   const isCacheActionDisabled = item.id === 'cacheSize' && !imageCacheEnabled;
+  const isActionDisabled = !!item.disabled || isCacheActionDisabled;
+
+  const getButtonBackground = () => {
+    if (item.buttonIntent === 'danger') {
+      return theme.dark ? 'rgba(244,67,54,0.2)' : '#FDEDED';
+    }
+
+    if (item.buttonIntent === 'primary') {
+      return theme.colors.primary;
+    }
+
+    return theme.colors.secondary;
+  };
+
+  const getButtonTextColor = () => {
+    if (item.buttonIntent === 'primary') {
+      return '#FFFFFF';
+    }
+
+    if (item.buttonIntent === 'danger') {
+      return theme.colors.error;
+    }
+
+    return theme.colors.text;
+  };
 
   return (
     <View style={[styles.settingContainer, { backgroundColor: theme.colors.card }]}> 
@@ -36,18 +61,18 @@ export default function SettingsOptionItem({
 
       {item.type === 'button' && item.onPress && (
         <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.secondary }]}
+          style={[styles.button, { backgroundColor: getButtonBackground() }]}
           onPress={item.onPress}
-          disabled={isCacheActionDisabled}
+          disabled={isActionDisabled}
         >
           <Text
             style={[
               styles.buttonText,
-              { color: theme.colors.text },
-              isCacheActionDisabled ? styles.buttonTextDisabled : null,
+              { color: getButtonTextColor() },
+              isActionDisabled ? styles.buttonTextDisabled : null,
             ]}
           >
-            {item.id === 'cacheSize' ? 'Clear' : 'Select'}
+            {item.buttonLabel || (item.id === 'cacheSize' ? 'Clear' : 'Select')}
           </Text>
         </TouchableOpacity>
       )}

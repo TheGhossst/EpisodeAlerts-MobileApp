@@ -12,10 +12,13 @@ export interface TVShow {
   next_episode_to_air?: Episode;
   last_episode_to_air?: Episode;
   number_of_seasons: number;
+  number_of_episodes?: number;
   status: string;
   genres: Genre[];
   networks: Network[];
   created_by: Creator[];
+  seasons?: Season[];
+  addedAt?: number;
 }
 
 export interface Episode {
@@ -75,6 +78,7 @@ const API_CACHE_STORAGE_KEY = '@EpisodeAlerts:tmdbApiCache';
 const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 200;
 const PERSIST_DEBOUNCE_MS = 400;
+const MAX_STALE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 class TMDBService {
   private static instance: TMDBService;
@@ -85,6 +89,8 @@ class TMDBService {
   private isCacheHydrated = false;
   private hydratePromise: Promise<void> | null = null;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private staleFallbackUsed = false;
+  private lastCachedDataUpdatedAt: number | null = null;
 
   private constructor() {
     this.baseURL = TMDB_CONFIG.BASE_URL;
@@ -174,7 +180,14 @@ class TMDBService {
         const parsed = JSON.parse(raw) as Record<string, CachedResponseEntry>;
         const now = Date.now();
         Object.entries(parsed).forEach(([key, entry]) => {
-          if (entry && typeof entry.expiresAt === 'number' && entry.expiresAt > now) {
+          if (!entry || typeof entry.expiresAt !== 'number') {
+            return;
+          }
+
+          const isFresh = entry.expiresAt > now;
+          const isWithinStaleRetention = now - entry.expiresAt <= MAX_STALE_RETENTION_MS;
+
+          if (isFresh || isWithinStaleRetention) {
             this.memoryCache.set(key, entry);
           }
         });
@@ -190,19 +203,29 @@ class TMDBService {
     await this.hydratePromise;
   }
 
-  private getCachedResponse<T>(cacheKey: string): T | null {
+  private getCachedResponse<T>(cacheKey: string): { data: T | null; isStale: boolean; updatedAt: number | null } {
     const entry = this.memoryCache.get(cacheKey);
     if (!entry) {
-      return null;
+      return {
+        data: null,
+        isStale: false,
+        updatedAt: null,
+      };
     }
 
     if (entry.expiresAt <= Date.now()) {
-      this.memoryCache.delete(cacheKey);
-      this.scheduleCachePersist();
-      return null;
+      return {
+        data: entry.data as T,
+        isStale: true,
+        updatedAt: entry.updatedAt,
+      };
     }
 
-    return entry.data as T;
+    return {
+      data: entry.data as T,
+      isStale: false,
+      updatedAt: entry.updatedAt,
+    };
   }
 
   private trimCacheIfNeeded(): void {
@@ -252,7 +275,19 @@ class TMDBService {
   public async clearCache(): Promise<void> {
     this.memoryCache.clear();
     this.inFlightRequests.clear();
+    this.lastCachedDataUpdatedAt = null;
+    this.staleFallbackUsed = false;
     await AsyncStorage.removeItem(API_CACHE_STORAGE_KEY);
+  }
+
+  public consumeStaleFallbackFlag(): boolean {
+    const staleFallbackUsed = this.staleFallbackUsed;
+    this.staleFallbackUsed = false;
+    return staleFallbackUsed;
+  }
+
+  public getLastCachedDataUpdatedAt(): number | null {
+    return this.lastCachedDataUpdatedAt;
   }
 
   private async fetchAPI<T>(endpoint: string): Promise<T> {
@@ -260,8 +295,9 @@ class TMDBService {
 
     const cacheKey = this.buildCacheKey(endpoint);
     const cachedResponse = this.getCachedResponse<T>(cacheKey);
-    if (cachedResponse) {
-      return cachedResponse;
+    if (cachedResponse.data && !cachedResponse.isStale) {
+      this.lastCachedDataUpdatedAt = cachedResponse.updatedAt;
+      return cachedResponse.data;
     }
 
     const existingRequest = this.inFlightRequests.get(cacheKey);
@@ -284,8 +320,15 @@ class TMDBService {
 
         const data = (await response.json()) as T;
         this.setCachedResponse(cacheKey, data, this.getCacheTTL(endpoint));
+        this.lastCachedDataUpdatedAt = Date.now();
         return data;
       } catch (error) {
+        if (cachedResponse.data) {
+          this.staleFallbackUsed = true;
+          this.lastCachedDataUpdatedAt = cachedResponse.updatedAt;
+          return cachedResponse.data;
+        }
+
         console.error('API fetch error:', error);
         throw error;
       } finally {

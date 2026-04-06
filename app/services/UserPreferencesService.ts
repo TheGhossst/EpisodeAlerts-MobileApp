@@ -48,6 +48,14 @@ class UserPreferencesService {
     return UserPreferencesService.instance;
   }
 
+  private triggerCloudSync(): void {
+    void import('./CloudSyncService')
+      .then((module) => module.default.syncToCloudIfSignedIn())
+      .catch((error) => {
+        console.error('Error triggering cloud sync from preferences:', error);
+      });
+  }
+
   public async initialize(): Promise<UserPreferences> {
     if (this.initialized) {
       return this.preferences;
@@ -110,37 +118,86 @@ class UserPreferencesService {
     return { ...this.preferences };
   }
 
-  public async setTheme(theme: ThemeType): Promise<void> {
+  public async setTheme(theme: ThemeType, options?: { skipCloudSync?: boolean }): Promise<void> {
     try {
       this.preferences.theme = theme;
       await AsyncStorage.setItem(THEME_KEY, theme);
       this.notifyListeners();
+
+      if (!options?.skipCloudSync) {
+        this.triggerCloudSync();
+      }
     } catch (error) {
       console.error('Error setting theme:', error);
       throw error;
     }
   }
 
-  public async setNotificationsEnabled(enabled: boolean): Promise<void> {
+  public async setNotificationsEnabled(enabled: boolean, options?: { skipCloudSync?: boolean }): Promise<void> {
     try {
       await NotificationService.setEnabled(enabled);
       
       this.preferences.notificationsEnabled = enabled;
       await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled.toString());
       this.notifyListeners();
+
+      if (!options?.skipCloudSync) {
+        this.triggerCloudSync();
+      }
     } catch (error) {
       console.error('Error setting notifications:', error);
       throw error;
     }
   }
 
-  public async setAnalyticsEnabled(enabled: boolean): Promise<void> {
+  public async setAnalyticsEnabled(enabled: boolean, options?: { skipCloudSync?: boolean }): Promise<void> {
     try {
       this.preferences.analyticsEnabled = enabled;
       await AsyncStorage.setItem(ANALYTICS_ENABLED_KEY, enabled.toString());
       this.notifyListeners();
+
+      if (!options?.skipCloudSync) {
+        this.triggerCloudSync();
+      }
     } catch (error) {
       console.error('Error setting analytics:', error);
+      throw error;
+    }
+  }
+
+  public async applySyncedPreferences(
+    preferences: Partial<Pick<UserPreferences, 'theme' | 'notificationsEnabled' | 'analyticsEnabled'>>,
+    options?: { skipCloudSync?: boolean },
+  ): Promise<void> {
+    try {
+      let hasChanges = false;
+
+      if (preferences.theme && preferences.theme !== this.preferences.theme) {
+        await this.setTheme(preferences.theme, { skipCloudSync: true });
+        hasChanges = true;
+      }
+
+      if (
+        typeof preferences.notificationsEnabled === 'boolean' &&
+        preferences.notificationsEnabled !== this.preferences.notificationsEnabled
+      ) {
+        await this.setNotificationsEnabled(preferences.notificationsEnabled, { skipCloudSync: true });
+        hasChanges = true;
+      }
+
+      if (
+        typeof preferences.analyticsEnabled === 'boolean' &&
+        preferences.analyticsEnabled !== this.preferences.analyticsEnabled
+      ) {
+        await this.setAnalyticsEnabled(preferences.analyticsEnabled, { skipCloudSync: true });
+        hasChanges = true;
+      }
+
+      if (hasChanges && !options?.skipCloudSync) {
+        this.triggerCloudSync();
+      }
+    } catch (error) {
+      console.error('Error applying synced preferences:', error);
       throw error;
     }
   }
@@ -175,6 +232,7 @@ class UserPreferencesService {
       await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, this.preferences.notificationsEnabled.toString());
       
       this.notifyListeners();
+      this.triggerCloudSync();
     } catch (error) {
       console.error('Error resetting preferences:', error);
       throw error;

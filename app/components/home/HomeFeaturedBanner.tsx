@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Dimensions,
-  ImageBackground,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -15,6 +14,7 @@ import { Feather, FontAwesome, Ionicons } from '@expo/vector-icons';
 import type { TVShow } from '@/app/services/TMDBService';
 import EpisodeCountdown from '@/app/components/EpisodeCountdown';
 import { formatDate, truncateText } from './_utils';
+import CachedImage from '@/components/CachedImage';
 
 const { height } = Dimensions.get('window');
 const BANNER_HEIGHT = height * 0.55;
@@ -32,10 +32,13 @@ export default function HomeFeaturedBanner({
 }: HomeFeaturedBannerProps) {
   return (
     <View style={styles.heroContainer}>
-      <ImageBackground
-        source={{ uri: `https://image.tmdb.org/t/p/original${featuredShow.backdrop_path}` }}
-        style={styles.heroBanner}
-      >
+      <View style={styles.heroBanner}>
+        <CachedImage
+          uri={`https://image.tmdb.org/t/p/original${featuredShow.backdrop_path}`}
+          style={styles.heroBackgroundImage}
+          resizeMode="cover"
+        />
+
         <LinearGradient
           colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']}
           style={styles.heroGradient}
@@ -132,7 +135,7 @@ export default function HomeFeaturedBanner({
             </Animated.View>
           </View>
         </LinearGradient>
-      </ImageBackground>
+      </View>
     </View>
   );
 }
@@ -145,6 +148,10 @@ const styles = StyleSheet.create({
   heroBanner: {
     width: '100%',
     height: '100%',
+    overflow: 'hidden',
+  },
+  heroBackgroundImage: {
+    ...StyleSheet.absoluteFillObject,
   },
   heroGradient: {
     ...StyleSheet.absoluteFillObject,

@@ -8,6 +8,7 @@ import {
   Alert,
   ScrollView,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +16,7 @@ import Toast from 'react-native-toast-message';
 import { TVShow, Genre } from '@/app/services/TMDBService';
 import WatchlistService from '@/app/services/WatchlistService';
 import NotificationService from '@/app/services/NotificationService';
-import type { LastWatchedEpisode } from '@/app/services/WatchlistService';
+import type { LastWatchedEpisode, WatchlistSnapshot } from '@/app/services/WatchlistService';
 import AnalyticsService, { EventType } from '@/app/services/AnalyticsService';
 import { useTheme } from '@/app/context/ThemeContext';
 import WatchlistHeader from '@/app/components/watchlist/WatchlistHeader';
@@ -27,9 +28,11 @@ import WatchlistSortModal from '@/app/components/watchlist/WatchlistSortModal';
 import type { FilterOptions, SortConfig, SortOption } from '@/app/components/watchlist/_types';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2;
-const CARD_ASPECT_RATIO = 1.62;
-const CARD_HEIGHT = CARD_WIDTH * CARD_ASPECT_RATIO;
+const GRID_CARD_WIDTH = (width - 48) / 2;
+const GRID_CARD_ASPECT_RATIO = 1.62;
+const GRID_CARD_HEIGHT = GRID_CARD_WIDTH * GRID_CARD_ASPECT_RATIO;
+const LIST_CARD_WIDTH = width - 32;
+const LIST_CARD_HEIGHT = 220;
 
 export default function WatchlistScreen() {
   const { theme } = useTheme();
@@ -45,6 +48,8 @@ export default function WatchlistScreen() {
   const [isSortModalVisible, setIsSortModalVisible] = useState(false);
   const [upcomingShows, setUpcomingShows] = useState<TVShow[]>([]);
   const [lastWatchedMap, setLastWatchedMap] = useState<Record<string, LastWatchedEpisode>>({});
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [lastClearedSnapshot, setLastClearedSnapshot] = useState<WatchlistSnapshot | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -169,15 +174,27 @@ export default function WatchlistScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const snapshot = await WatchlistService.getWatchlistSnapshot();
               const success = await WatchlistService.clearWatchlist();
               if (success) {
                 setWatchlist([]);
+                setFilteredWatchlist([]);
+                setUpcomingShows([]);
+                setLastWatchedMap({});
+                setLastClearedSnapshot(snapshot);
+
                 Toast.show({
                   type: 'success',
                   text1: 'Watchlist Cleared',
-                  text2: 'Your watchlist has been cleared',
+                  text2: 'Tap this message to undo.',
                   position: 'bottom',
+                  autoHide: true,
+                  visibilityTime: 7000,
+                  onPress: () => {
+                    void undoClearWatchlist();
+                  },
                 });
+
                 await AnalyticsService.trackEvent(EventType.CHANGE_SETTINGS, {
                   action: 'clearWatchlist',
                 });
@@ -195,6 +212,41 @@ export default function WatchlistScreen() {
         },
       ]
     );
+  };
+
+  const undoClearWatchlist = async () => {
+    if (!lastClearedSnapshot) {
+      return;
+    }
+
+    try {
+      const restored = await WatchlistService.restoreWatchlistSnapshot(lastClearedSnapshot);
+      if (!restored) {
+        throw new Error('Failed to restore watchlist');
+      }
+
+      setLastClearedSnapshot(null);
+      await loadWatchlist();
+
+      Toast.show({
+        type: 'success',
+        text1: 'Watchlist Restored',
+        text2: 'Your previous watchlist has been restored.',
+        position: 'bottom',
+      });
+
+      await AnalyticsService.trackEvent(EventType.CHANGE_SETTINGS, {
+        action: 'undoClearWatchlist',
+      });
+    } catch (undoError) {
+      console.error('Error restoring cleared watchlist:', undoError);
+      Toast.show({
+        type: 'error',
+        text1: 'Restore Failed',
+        text2: 'Could not restore your previous watchlist.',
+        position: 'bottom',
+      });
+    }
   };
 
   const applyFiltersAndSort = useCallback(() => {
@@ -217,7 +269,7 @@ export default function WatchlistScreen() {
           break;
 
         case 'date_added':
-          comparison = b.id - a.id;
+          comparison = (a.addedAt || 0) - (b.addedAt || 0);
           break;
 
         case 'next_episode':
@@ -278,8 +330,9 @@ export default function WatchlistScreen() {
       item={item}
       index={index}
       theme={theme}
-      cardWidth={CARD_WIDTH}
-      cardHeight={CARD_HEIGHT}
+      cardWidth={viewMode === 'grid' ? GRID_CARD_WIDTH : LIST_CARD_WIDTH}
+      cardHeight={viewMode === 'grid' ? GRID_CARD_HEIGHT : LIST_CARD_HEIGHT}
+      viewMode={viewMode}
       lastWatched={lastWatchedMap[String(item.id)]}
       onRemove={removeFromWatchlist}
     />
@@ -304,6 +357,54 @@ export default function WatchlistScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <WatchlistHeader showCount={watchlist.length} theme={theme} onAddShowsPress={() => router.push('/search')} />
 
+        {watchlist.length > 0 && (
+          <View style={styles.controlsRow}>
+            <TouchableOpacity
+              style={[styles.controlButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+              onPress={() => setIsFilterModalVisible(true)}
+            >
+              <Ionicons name="options-outline" size={16} color={theme.colors.text} />
+              <Text style={[styles.controlButtonText, { color: theme.colors.text }]}>Filter</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.controlButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+              onPress={() => setIsSortModalVisible(true)}
+            >
+              <Ionicons name="swap-vertical-outline" size={16} color={theme.colors.text} />
+              <Text style={[styles.controlButtonText, { color: theme.colors.text }]}>Sort</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.controlButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+              onPress={() => setViewMode((prev) => (prev === 'grid' ? 'list' : 'grid'))}
+            >
+              <Ionicons
+                name={viewMode === 'grid' ? 'grid-outline' : 'list-outline'}
+                size={16}
+                color={theme.colors.text}
+              />
+              <Text style={[styles.controlButtonText, { color: theme.colors.text }]}>
+                {viewMode === 'grid' ? 'Grid' : 'List'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.controlButton,
+                {
+                  backgroundColor: theme.colors.card,
+                  borderColor: theme.colors.error,
+                },
+              ]}
+              onPress={clearWatchlist}
+            >
+              <Ionicons name="trash-outline" size={16} color={theme.colors.error} />
+              <Text style={[styles.controlButtonText, { color: theme.colors.error }]}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {upcomingShows.length > 0 && (
           <View style={styles.upcomingSection}>
             <View style={styles.sectionHeader}>
@@ -327,12 +428,13 @@ export default function WatchlistScreen() {
             <WatchlistEmptyState theme={theme} />
           ) : (
             <FlatList
+              key={viewMode}
               data={filteredWatchlist}
               keyExtractor={(item) => `show-${item.id}`}
               renderItem={renderWatchlistItem}
-              numColumns={2}
+              numColumns={viewMode === 'grid' ? 2 : 1}
               scrollEnabled={false}
-              columnWrapperStyle={styles.columnWrapper}
+              columnWrapperStyle={viewMode === 'grid' ? styles.columnWrapper : undefined}
             />
           )}
 
@@ -387,6 +489,28 @@ const styles = StyleSheet.create({
   upcomingSection: {
     paddingHorizontal: 16,
     marginBottom: 24,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  controlButton: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  controlButtonText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: '600',
   },
   showsSection: {
     paddingHorizontal: 16,
