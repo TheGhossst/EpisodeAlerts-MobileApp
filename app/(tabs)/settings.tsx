@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { router, Stack } from 'expo-router';
 import UserPreferencesService, { ThemeType } from '@/app/services/UserPreferencesService';
 import AnalyticsService, { EventType } from '@/app/services/AnalyticsService';
@@ -22,6 +23,110 @@ import type { SettingOption, SettingSection } from '@/app/components/settings/_t
 import SettingsOptionItem from '@/app/components/settings/SettingsOptionItem';
 import SettingsSectionHeader from '@/app/components/settings/SettingsSectionHeader';
 import { buildSettingsSections } from '@/app/components/settings/_buildSettingsSections';
+
+type AuthMode = 'signIn' | 'signUp';
+
+type AuthFeedback = {
+  title: string;
+  message: string;
+  code: string | null;
+};
+
+function getFirebaseErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}
+
+function getAuthFeedback(error: unknown, mode: AuthMode): AuthFeedback {
+  const code = getFirebaseErrorCode(error);
+  const notConfiguredMessage = 'Cloud sync is not available in this build.';
+
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.toLowerCase().includes('not configured')) {
+      return {
+        title: 'Cloud sync unavailable',
+        message: notConfiguredMessage,
+        code,
+      };
+    }
+  }
+
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return {
+        title: 'Email already in use',
+        message: 'That address already has an account. Try signing in instead.',
+        code,
+      };
+    case 'auth/invalid-email':
+      return {
+        title: 'Invalid email',
+        message: 'Enter a valid email address and try again.',
+        code,
+      };
+    case 'auth/weak-password':
+      return {
+        title: 'Weak password',
+        message: 'Use a stronger password with at least 6 characters.',
+        code,
+      };
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'auth/invalid-login-credentials':
+      return {
+        title: 'Sign in failed',
+        message: 'Check your email and password, then try again.',
+        code,
+      };
+    case 'auth/user-disabled':
+      return {
+        title: 'Account disabled',
+        message: 'This account has been disabled. Contact support if needed.',
+        code,
+      };
+    case 'auth/too-many-requests':
+      return {
+        title: 'Too many attempts',
+        message: 'Please wait a moment before trying again.',
+        code,
+      };
+    case 'auth/network-request-failed':
+      return {
+        title: 'Connection issue',
+        message: 'Check your internet connection and try again.',
+        code,
+      };
+    case 'auth/operation-not-allowed':
+      return {
+        title: 'Sign in unavailable',
+        message: 'Email and password sign-in is not enabled for this project.',
+        code,
+      };
+    default:
+      return {
+        title: mode === 'signUp' ? 'Could not create account' : 'Could not sign in',
+        message: 'Please try again.',
+        code,
+      };
+  }
+}
+
+function showAuthToast(title: string, message: string, variant: 'success' | 'error') {
+  Toast.show({
+    type: variant,
+    text1: title,
+    text2: message,
+    position: 'bottom',
+    visibilityTime: 3500,
+    autoHide: true,
+  });
+}
 
 export default function SettingsScreen() {
   const { theme, setTheme } = useTheme();
@@ -37,10 +142,11 @@ export default function SettingsScreen() {
   const [cloudSyncStatusText, setCloudSyncStatusText] = useState('Never synced');
   const [isCloudSyncBusy, setIsCloudSyncBusy] = useState(false);
   const [authModalVisible, setAuthModalVisible] = useState(false);
-  const [authMode, setAuthMode] = useState<'signIn' | 'signUp'>('signIn');
+  const [authMode, setAuthMode] = useState<AuthMode>('signIn');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [authFeedback, setAuthFeedback] = useState<AuthFeedback | null>(null);
 
   useEffect(() => {
     let unsubscribeAuth = () => {};
@@ -110,10 +216,11 @@ export default function SettingsScreen() {
     }
   };
 
-  const openAuthModal = (mode: 'signIn' | 'signUp') => {
+  const openAuthModal = (mode: AuthMode) => {
     setAuthMode(mode);
     setAuthEmail('');
     setAuthPassword('');
+    setAuthFeedback(null);
     setAuthModalVisible(true);
   };
 
@@ -122,6 +229,7 @@ export default function SettingsScreen() {
       return;
     }
 
+    setAuthFeedback(null);
     setAuthModalVisible(false);
   };
 
@@ -129,8 +237,14 @@ export default function SettingsScreen() {
     const email = authEmail.trim();
     const password = authPassword;
 
+    setAuthFeedback(null);
+
     if (!email || !password) {
-      Alert.alert('Missing details', 'Enter both email and password.');
+      setAuthFeedback({
+        title: 'Missing details',
+        message: 'Enter both email and password to continue.',
+        code: null,
+      });
       return;
     }
 
@@ -142,13 +256,23 @@ export default function SettingsScreen() {
         await CloudSyncService.signUp(email, password);
       }
 
-      await refreshCloudSyncStatus();
       setAuthModalVisible(false);
+      setAuthEmail('');
+      setAuthPassword('');
+      setAuthFeedback(null);
+      await refreshCloudSyncStatus();
 
-      Alert.alert('Success', authMode === 'signIn' ? 'Signed in successfully.' : 'Account created successfully.');
+      showAuthToast(
+        authMode === 'signIn' ? 'Signed in' : 'Account created',
+        authMode === 'signIn'
+          ? 'Cloud sync is now enabled on this device.'
+          : 'Your account is ready and cloud sync is active.',
+        'success',
+      );
     } catch (error) {
-      console.error('Auth error:', error);
-      Alert.alert('Authentication Failed', 'Check your credentials and try again.');
+      const feedback = getAuthFeedback(error, authMode);
+      console.warn('Auth request failed:', feedback.code || 'unknown');
+      setAuthFeedback(feedback);
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -430,13 +554,59 @@ export default function SettingsScreen() {
                 : 'Create a cloud account for watchlist sync.'}
             </Text>
 
+            {authFeedback ? (
+              <View
+                style={[
+                  styles.authFeedbackCard,
+                  {
+                    backgroundColor: theme.dark ? 'rgba(244, 67, 54, 0.12)' : '#FDEDED',
+                    borderColor: theme.colors.error,
+                  },
+                ]}
+              >
+                <View style={styles.authFeedbackTextWrap}>
+                  <Text style={[styles.authFeedbackTitle, { color: theme.colors.error }]}>
+                    {authFeedback.title}
+                  </Text>
+                  <Text style={[styles.authFeedbackMessage, { color: theme.colors.textSecondary }]}>
+                    {authFeedback.message}
+                  </Text>
+                </View>
+
+                {authFeedback.code === 'auth/email-already-in-use' && authMode === 'signUp' ? (
+                  <TouchableOpacity
+                    style={[styles.authFeedbackAction, { backgroundColor: theme.colors.primary }]}
+                    onPress={() => {
+                      setAuthMode('signIn');
+                      setAuthFeedback(null);
+                    }}
+                  >
+                    <Text style={styles.authFeedbackActionText}>Use Sign In</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.authFeedbackAction, { backgroundColor: theme.colors.secondary }]}
+                    onPress={() => setAuthFeedback(null)}
+                  >
+                    <Text style={[styles.authFeedbackActionText, { color: theme.colors.text }]}>Dismiss</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
+
             <TextInput
               value={authEmail}
-              onChangeText={setAuthEmail}
+              onChangeText={(value) => {
+                setAuthEmail(value);
+                if (authFeedback) {
+                  setAuthFeedback(null);
+                }
+              }}
               placeholder="Email"
               placeholderTextColor={theme.colors.textSecondary}
               autoCapitalize="none"
               keyboardType="email-address"
+              editable={!isAuthSubmitting}
               style={[
                 styles.authInput,
                 {
@@ -448,10 +618,16 @@ export default function SettingsScreen() {
             />
             <TextInput
               value={authPassword}
-              onChangeText={setAuthPassword}
+              onChangeText={(value) => {
+                setAuthPassword(value);
+                if (authFeedback) {
+                  setAuthFeedback(null);
+                }
+              }}
               placeholder="Password"
               placeholderTextColor={theme.colors.textSecondary}
               secureTextEntry
+              editable={!isAuthSubmitting}
               style={[
                 styles.authInput,
                 {
@@ -471,11 +647,33 @@ export default function SettingsScreen() {
                 <Text style={[styles.authActionText, { color: theme.colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.authActionButton, { backgroundColor: theme.colors.primary }]}
+                style={[
+                  styles.authActionButton,
+                  styles.authPrimaryButton,
+                  {
+                    backgroundColor: theme.colors.primary,
+                    shadowColor: theme.colors.primary,
+                  },
+                  isAuthSubmitting ? styles.authPrimaryButtonBusy : null,
+                ]}
                 onPress={handleAuthSubmit}
                 disabled={isAuthSubmitting}
               >
-                <Text style={[styles.authActionText, { color: '#FFFFFF' }]}>Continue</Text>
+                {isAuthSubmitting ? (
+                  <View style={styles.authActionLoadingRow}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <View style={styles.authActionLoadingCopy}>
+                      <Text style={[styles.authActionTitle, { color: '#FFFFFF' }]}>
+                        {authMode === 'signIn' ? 'Signing you in' : 'Creating your account'}
+                      </Text>
+                      <Text style={styles.authActionSubtitle}>Please wait a moment.</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={[styles.authActionText, { color: '#FFFFFF' }]}>
+                    {authMode === 'signIn' ? 'Sign In' : 'Create Account'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -516,6 +714,37 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 12,
   },
+  authFeedbackCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  authFeedbackTextWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  authFeedbackTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  authFeedbackMessage: {
+    marginTop: 4,
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  authFeedbackAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  authFeedbackActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   authInput: {
     borderWidth: 1,
     borderRadius: 8,
@@ -531,9 +760,40 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
     marginHorizontal: 4,
+    minHeight: 54,
+  },
+  authPrimaryButton: {
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    elevation: 4,
+  },
+  authPrimaryButtonBusy: {
+    opacity: 0.95,
+  },
+  authActionLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authActionLoadingCopy: {
+    marginLeft: 10,
+    alignItems: 'flex-start',
+  },
+  authActionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  authActionSubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
   },
   authActionText: {
     fontSize: 14,

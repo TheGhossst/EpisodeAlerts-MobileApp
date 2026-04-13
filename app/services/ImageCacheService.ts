@@ -21,6 +21,115 @@ class ImageCacheService {
     this.loadSettings();
   }
 
+  private getCacheFile(url: string): File {
+    return new File(
+      IMAGE_CACHE_DIR,
+      `${this.hashUrl(url)}${this.getImageExtension(url)}`,
+    );
+  }
+
+  private hashUrl(value: string): string {
+    let hash = 2166136261;
+
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36);
+  }
+
+  private isSupportedImageUrl(url: string): boolean {
+    try {
+      const parsedUrl = new URL(url);
+      return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  public getCachedImageUriIfAvailable(url: string): string | null {
+    if (!this.isEnabled || !url || !this.isSupportedImageUrl(url)) {
+      return null;
+    }
+
+    const cachedFile = this.getCacheFile(url);
+    if (cachedFile.exists && cachedFile.size > 0) {
+      return cachedFile.uri;
+    }
+
+    if (cachedFile.exists) {
+      this.removeCachedFile(cachedFile);
+    }
+
+    return null;
+  }
+
+  private getImageExtension(url: string): string {
+    const cleanedUrl = url.split('?')[0];
+    const lastSegment = cleanedUrl.split('/').pop() ?? '';
+    const extensionMatch = lastSegment.match(/\.[a-zA-Z0-9]+$/);
+
+    return extensionMatch ? extensionMatch[0].toLowerCase() : '.img';
+  }
+
+  private removeCachedFile(cachedFile: File): void {
+    if (cachedFile.exists) {
+      cachedFile.delete();
+    }
+  }
+
+  private async cacheImage(url: string, cachedFile: File): Promise<boolean> {
+    try {
+      const downloadResult = await File.downloadFileAsync(url, cachedFile, {
+        idempotent: true,
+      });
+
+      const downloadedSize = downloadResult.size ?? cachedFile.size;
+      if (
+        downloadResult.exists &&
+        typeof downloadedSize === 'number' &&
+        downloadedSize > 0
+      ) {
+        await this.updateCacheSize(downloadedSize);
+        return true;
+      }
+
+      this.removeCachedFile(cachedFile);
+    } catch {
+      this.removeCachedFile(cachedFile);
+    }
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return false;
+      }
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.toLowerCase().startsWith('image/')) {
+        return false;
+      }
+
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength === 0) {
+        return false;
+      }
+
+      cachedFile.write(bytes);
+
+      const cachedSize = cachedFile.size || bytes.byteLength;
+      if (cachedSize > 0) {
+        await this.updateCacheSize(cachedSize);
+        return true;
+      }
+    } catch {
+      this.removeCachedFile(cachedFile);
+    }
+
+    return false;
+  }
+
   public static getInstance(): ImageCacheService {
     if (!ImageCacheService.instance) {
       ImageCacheService.instance = new ImageCacheService();
@@ -62,42 +171,34 @@ class ImageCacheService {
   }
 
   public async getCachedImageUri(url: string): Promise<string> {
-    if (!this.isEnabled || !url) {
+    if (!this.isEnabled || !url || !this.isSupportedImageUrl(url)) {
       return url;
     }
 
     try {
-      // Create a unique filename based on the URL
-      const filename = this.getFilenameFromUrl(url);
-      const cachedFile = new File(IMAGE_CACHE_DIR, filename);
+      this.setupCacheDirectory();
+
+      const cachedFile = this.getCacheFile(url);
       
       // Check if the file exists in cache
-      if (cachedFile.exists) {
+      if (cachedFile.exists && cachedFile.size > 0) {
         return cachedFile.uri;
       }
-      
-      // Download and cache the image
-      const downloadResult = await File.downloadFileAsync(url, cachedFile, {
-        idempotent: true,
-      });
 
-      // Update cache size with file size
-      if (downloadResult.exists && downloadResult.size) {
-        await this.updateCacheSize(downloadResult.size);
+      if (cachedFile.exists) {
+        this.removeCachedFile(cachedFile);
       }
-
-      return downloadResult.uri;
+      
+      // Download and cache the image, with a fetch fallback when native download fails.
+      const cached = await this.cacheImage(url, cachedFile);
+      if (cached) {
+        return cachedFile.uri;
+      }
     } catch (error) {
-      console.error('Error caching image:', error);
       return url;
     }
-  }
 
-  private getFilenameFromUrl(url: string): string {
-    // Extract the filename from the URL and create a hash
-    const parts = url.split('/');
-    const lastPart = parts[parts.length - 1];
-    return lastPart.replace(/[^a-zA-Z0-9.]/g, '_');
+    return url;
   }
 
   private async updateCacheSize(newFileSize: number = 0): Promise<void> {

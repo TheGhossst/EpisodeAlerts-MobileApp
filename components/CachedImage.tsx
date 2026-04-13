@@ -35,6 +35,7 @@ const CachedImage: React.FC<CachedImageProps> = ({
         if (isActive) {
           setIsLoading(true);
           setHasError(false);
+          setCachedUri(null);
         }
         
         if (!uri) {
@@ -48,24 +49,26 @@ const CachedImage: React.FC<CachedImageProps> = ({
         if (!ImageCacheService.isImageCacheEnabled()) {
           if (isActive) {
             setCachedUri(uri);
-            setIsLoading(false);
           }
           return;
         }
 
-        const cached = await ImageCacheService.getCachedImageUri(uri);
         if (isActive) {
-          setCachedUri(cached);
+          const cached = ImageCacheService.getCachedImageUriIfAvailable(uri);
+          if (cached) {
+            setCachedUri(cached);
+            return;
+          }
+
+          setCachedUri(uri);
         }
+
+        void ImageCacheService.getCachedImageUri(uri);
       } catch (error) {
         console.error('Error caching image:', error, uri);
         // Fallback to original URI on error
         if (isActive) {
           setCachedUri(uri);
-          setHasError(true);
-        }
-      } finally {
-        if (isActive) {
           setIsLoading(false);
         }
       }
@@ -80,6 +83,7 @@ const CachedImage: React.FC<CachedImageProps> = ({
 
   const handleError = () => {
     setHasError(true);
+    setIsLoading(false);
     onError?.();
   };
 

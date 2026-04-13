@@ -13,6 +13,7 @@ import 'react-native-reanimated';
 import { ThemeProvider as AppThemeProvider, useTheme } from '@/app/context/ThemeContext';
 import { NetworkStatusProvider } from '@/app/context/NetworkStatusContext';
 import ConnectivityBanner from '@/app/components/ConnectivityBanner';
+import AppToast from '@/app/components/AppToast';
 import AnalyticsService from '@/app/services/AnalyticsService';
 import CloudSyncService from '@/app/services/CloudSyncService';
 import NotificationService from '@/app/services/NotificationService';
@@ -148,6 +149,7 @@ function RootLayoutNav() {
   return (
     <NavigationThemeProvider value={navigationTheme}>
       <ConnectivityBanner />
+      <AppToast />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
