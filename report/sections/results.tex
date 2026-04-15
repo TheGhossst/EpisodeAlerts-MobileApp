@@ -1,0 +1,65 @@
+\section{Results Overview}
+The screenshots below show the implemented app in its final form, covering the main user flows: discovery, show details, watchlist management, analytics, and settings. Together, they demonstrate that the core screens are working as intended and that the app presents a consistent experience across its main features.
+
+Source code is available on GitHub at \href{https://github.com/TheGhossst/EpisodeAlerts-MobileApp}{EpisodeAlerts-MobileApp}.
+
+\section{Application Screenshots}
+
+\noindent\begin{minipage}[t]{0.47\textwidth}
+\centering
+\includegraphics[width=0.84\linewidth,keepaspectratio]{1.jpg}
+
+\small\textit{Home screen with featured content and category sections.}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.47\textwidth}
+\centering
+\includegraphics[width=0.84\linewidth,keepaspectratio]{2.jpg}
+
+\small\textit{Show details screen with episode information and watchlist state.}
+\end{minipage}
+
+\vspace{1.25em}
+
+\noindent\begin{minipage}[t]{0.47\textwidth}
+\centering
+\includegraphics[width=0.84\linewidth,keepaspectratio]{6.jpg}
+\small\textit{Search screen showing TV show search results.}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.47\textwidth}
+\centering
+\includegraphics[width=0.84\linewidth,keepaspectratio]{3.jpg}
+
+\small\textit{Watchlist screen with upcoming episodes and saved shows.}
+\end{minipage}
+
+\vspace{1.25em}
+
+\noindent\begin{minipage}[t]{0.47\textwidth}
+\centering
+\includegraphics[width=0.84\linewidth,keepaspectratio]{4.jpg}
+
+\small\textit{Settings screen with theme, notifications, and caching options.}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.47\textwidth}
+\centering
+\includegraphics[width=0.84\linewidth,keepaspectratio]{5.jpg}
+
+\small\textit{Analytics insights screen showing usage trends and event breakdowns.}
+\end{minipage}
+
+\section{Outcome Summary}
+The implemented build satisfies the core functional objectives defined in the SRS and demonstrates stable behavior across the primary user journeys.
+
+\begin{itemize}
+	\item Discovery and search workflows successfully fetch and display TV data from TMDB, while preserving usability through cache and fallback behavior.
+	\item Show details, season navigation, and next-episode context are presented consistently from Home, Search, and Watchlist entry points.
+	\item Watchlist actions (add, remove, and update) persist correctly in local storage and reflect immediately in the user interface.
+	\item Settings changes for theme, analytics, and notifications are retained and applied across app sessions.
+	\item The analytics screen confirms event tracking visibility, and optional cloud-sync behavior aligns with the configured authentication state.
+\end{itemize}
+
+\section{Conclusion}
+Episode Alerts delivers a complete and coherent mobile experience for TV discovery and tracking, with a clear architecture and reliable end-to-end flows. The final implementation is suitable for submission and provides a strong baseline for future enhancements such as richer personalization, expanded recommendation logic, and broader sync capabilities.

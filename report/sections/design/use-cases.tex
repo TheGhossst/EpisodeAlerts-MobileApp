@@ -1,0 +1,158 @@
+\subsection*{System}
+Episode Alerts is a mobile companion app for discovering and tracking television shows.
+
+\subsection*{Assumptions}
+\begin{itemize}
+	\item TMDB is available when fresh show data is requested, or cached data is already stored on the device.
+	\item The user has granted notification permissions if episode reminders are enabled.
+	\item Firebase is configured only when optional cloud synchronization is being used.
+	\item Local device storage is available for watchlist data, preferences, and cached content.
+\end{itemize}
+
+\subsection*{The Main Use Cases Are}
+\begin{itemize}
+	\item Discover TV Shows
+	\item Search for TV Shows
+	\item View Show Details
+	\item Manage Watchlist
+	\item Configure Preferences and Notifications
+	\item Sync Data to Cloud
+\end{itemize}
+
+\subsection*{1. Use Case 1: Discover TV Shows}
+\noindent\textbf{1.1 Primary Actor:} User
+
+\noindent\textbf{1.2 Precondition:} The app is open and the Home screen is available.
+
+\noindent\textbf{1.3 Scenario:} The user browses the Home screen to explore featured and trending content.
+
+\subsubsection*{1.3.1 Main Success Scenario}
+\begin{enumerate}[label=\arabic*.]
+	\item The user opens the Home screen.
+	\item The system loads featured, airing today, popular, and top-rated shows from TMDB or from cached data.
+	\item The system displays the show sections in a scrollable layout.
+	\item The user taps a show card.
+	\item The system opens the show details screen for the selected show.
+\end{enumerate}
+
+\subsubsection*{1.3.2 Exception Scenario}
+\begin{itemize}
+	\item \textbf{2a.} If step 2 fails because the network is unavailable, the system shows stale cached data and a stale-data indicator.
+	\item \textbf{4a.} If step 4 cannot be completed because the selected item is unavailable, the system stays on the Home screen.
+\end{itemize}
+
+\subsection*{2. Use Case 2: Search for TV Shows}
+\noindent\textbf{2.1 Primary Actor:} User
+
+\noindent\textbf{2.2 Precondition:} The Search screen is available and the user can enter text.
+
+\noindent\textbf{2.3 Scenario:} The user enters a query to find a specific TV show.
+
+\subsubsection*{2.3.1 Main Success Scenario}
+\begin{enumerate}[label=\arabic*.]
+	\item The user opens the Search screen.
+	\item The user types a show title or keyword.
+	\item The system waits for a valid query and sends the request to TMDB.
+	\item The system displays the matching search results.
+	\item The user selects one of the results.
+	\item The system opens the show details screen for that result.
+\end{enumerate}
+
+\subsubsection*{2.3.2 Exception Scenario}
+\begin{itemize}
+	\item \textbf{3a.} If step 3 fails because the request is too short, the system clears the results and waits for a valid search term.
+	\item \textbf{3b.} If the network request fails, the system shows an error message and allows the user to retry.
+	\item \textbf{4a.} If no results are returned in step 4, the system shows an empty state instead of a result list.
+\end{itemize}
+
+\subsection*{3. Use Case 3: View Show Details}
+\noindent\textbf{3.1 Primary Actor:} User
+
+\noindent\textbf{3.2 Precondition:} The user has selected a show from Home, Search, or Watchlist.
+
+\noindent\textbf{3.3 Scenario:} The user opens a show to review detailed information and explore seasons or episodes.
+
+\subsubsection*{3.3.1 Main Success Scenario}
+\begin{enumerate}[label=\arabic*.]
+	\item The user opens a show details screen.
+	\item The system loads show metadata such as overview, rating, status, genres, and network information.
+	\item The system displays next episode information, last episode information, and available seasons.
+	\item The user opens a season to view its episode list.
+	\item The user returns to the show details screen or continues to another related action, such as adding the show to the watchlist.
+\end{enumerate}
+
+\subsubsection*{3.3.2 Exception Scenario}
+\begin{itemize}
+	\item \textbf{2a.} If step 2 fails, the system falls back to cached details when available.
+	\item \textbf{3a.} If a show does not have a next episode yet, the countdown area is hidden instead of showing invalid information.
+	\item \textbf{4a.} If season data cannot be loaded, the system shows an error or empty state for that section only.
+\end{itemize}
+
+\subsection*{4. Use Case 4: Manage Watchlist}
+\noindent\textbf{4.1 Primary Actor:} User
+
+\noindent\textbf{4.2 Precondition:} The user is viewing a show card, show details screen, or the Watchlist screen.
+
+\noindent\textbf{4.3 Scenario:} The user adds, removes, or organizes shows in the watchlist.
+
+\subsubsection*{4.3.1 Main Success Scenario}
+\begin{enumerate}[label=\arabic*.]
+	\item The user taps the watchlist action for a show.
+	\item The system saves the show locally in the watchlist store.
+	\item The system updates the watchlist screen and related counts immediately.
+	\item The system schedules release notifications when notifications are enabled.
+	\item The user later removes the show or clears the watchlist if needed.
+\end{enumerate}
+
+\subsubsection*{4.3.2 Exception Scenario}
+\begin{itemize}
+	\item \textbf{1a.} If step 1 targets a show that is already in the watchlist, the system leaves the list unchanged and returns a duplicate-state response.
+	\item \textbf{2a.} If step 2 fails because storage is unavailable, the system shows an error and keeps the previous watchlist state.
+	\item \textbf{5a.} If the user clears the watchlist and later chooses undo, the system restores the last saved snapshot when available.
+\end{itemize}
+
+\subsection*{5. Use Case 5: Configure Preferences and Notifications}
+\noindent\textbf{5.1 Primary Actor:} User
+
+\noindent\textbf{5.2 Precondition:} The Settings screen is available.
+
+\noindent\textbf{5.3 Scenario:} The user changes app preferences such as theme, analytics, and notification behavior.
+
+\subsubsection*{5.3.1 Main Success Scenario}
+\begin{enumerate}[label=\arabic*.]
+	\item The user opens the Settings screen.
+	\item The user changes the theme, analytics preference, or notification setting.
+	\item The system saves the preference locally and updates the app behavior.
+	\item If notifications are enabled, the system requests permission and schedules upcoming episode reminders.
+	\item The updated setting remains active the next time the app is opened.
+\end{enumerate}
+
+\subsubsection*{5.3.2 Exception Scenario}
+\begin{itemize}
+	\item \textbf{2a.} If a preference update cannot be saved, the system shows an error and retains the previous value.
+	\item \textbf{3a.} If analytics are disabled, the system stops recording usage events immediately.
+	\item \textbf{4a.} If notification permission is denied in step 4, the system keeps notifications disabled and does not schedule reminders.
+\end{itemize}
+
+\subsection*{6. Use Case 6: Sync Data to Cloud}
+\noindent\textbf{6.1 Primary Actor:} Signed-in User
+
+\noindent\textbf{6.2 Precondition:} Firebase is configured and the user is signed in.
+
+\noindent\textbf{6.3 Scenario:} The system synchronizes watchlist data and user preferences with the cloud.
+
+\subsubsection*{6.3.1 Main Success Scenario}
+\begin{enumerate}[label=\arabic*.]
+	\item The user signs in or triggers a synchronization event.
+	\item The system builds a payload from the watchlist, watch progress, watch history, and selected preferences.
+	\item The system uploads the payload to Firestore.
+	\item The system stores the last successful sync time.
+	\item The system repeats synchronization automatically when local data changes or when the app resumes.
+\end{enumerate}
+
+\subsubsection*{6.3.2 Exception Scenario}
+\begin{itemize}
+	\item \textbf{1a.} If step 1 occurs while the device is offline, the system skips the upload and retries later.
+	\item \textbf{3a.} If Firebase is not configured or the user is not signed in, the system keeps all data local.
+	\item \textbf{5a.} If the cloud request fails, the system preserves local data and logs the sync failure for later retry.
+\end{itemize}

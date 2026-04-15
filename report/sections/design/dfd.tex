@@ -1,0 +1,31 @@
+Episode Alerts is built around a few core data paths: show discovery and search through TMDB, watchlist and preference storage on the device, episode reminders through the notification layer, and optional cloud sync through Firebase.
+
+\subsection{Level 0 Context DFD}
+This level shows Episode Alerts as a single system interacting with the user and its external services.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{dfd0.png}
+\caption{Level 0 context DFD for Episode Alerts.}
+\label{fig:dfd-level-0}
+\end{figure}
+
+\subsection{Level 1 Logical DFD}
+This level breaks the app into its main logical processes and the data stores they use.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{dfd1.png}
+\caption{Level 1 logical DFD showing the primary processes and data stores.}
+\label{fig:dfd-level-1}
+\end{figure}
+
+\subsection{Level 2 DFD: Content Discovery and Search}
+This level decomposes the content discovery path because it is the main entry point into the app and the clearest place to show TMDBService, cache hydration, request normalization, and stale-data fallback. It is intentionally more detailed than level 1.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.98\textwidth]{dfd2.png}
+\caption{Level 2 DFD for content discovery and search, including cache and stale-data fallback paths.}
+\label{fig:dfd-level-2}
+\end{figure}

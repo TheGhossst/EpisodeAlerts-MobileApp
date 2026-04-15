@@ -1,0 +1,130 @@
+\section{Introduction}
+
+\subsection{Purpose}
+This software requirements specification describes the functional and non-functional requirements for Episode Alerts, a cross-platform mobile app that helps users discover television shows, manage a personal watchlist, and stay updated on upcoming episodes. It is intended for developers, testers, reviewers, and future maintainers who need a clear understanding of what the system should do and the limits it must work within.
+
+\subsection{Scope}
+Episode Alerts is built with React Native, Expo, and TypeScript, and it uses the TMDB API as its primary content source. The app supports show discovery, detailed show and season views, watchlist management, episode notifications, user preferences, offline-friendly caching, and optional cloud synchronization. It is designed as a companion app rather than a streaming platform.
+
+\subsection{Definitions, Acronyms, and Abbreviations}
+\begin{description}[leftmargin=1.8cm, style=nextline]
+	\item[API] Application Programming Interface.
+	\item[AsyncStorage] Local key-value storage used to persist app data on the device.
+	\item[DFD] Data Flow Diagram.
+	\item[Expo] The framework and toolchain used to build and run the app.
+	\item[Firebase] Cloud platform used for optional authentication and data synchronization.
+	\item[FR] Functional Requirement.
+	\item[SRS] Software Requirements Specification.
+	\item[TMDB] The Movie Database, the external service used for show data.
+	\item[UI] User Interface.
+\end{description}
+
+\subsection{References}
+\begin{itemize}
+	\item The Movie Database API documentation.
+	\item Expo documentation for routing, notifications, and runtime services.
+	\item React Native documentation.
+	\item Firebase documentation for authentication and Firestore.
+	\item Project repository source code and configuration files.
+\end{itemize}
+
+\subsection{Overview}
+This SRS is organized into three main parts. The introduction explains the purpose and scope of the product, the overall description summarizes the product context and main characteristics, and the specific requirements section covers the external interfaces, functional behavior, performance expectations, constraints, and quality attributes.
+
+\section{Overall Description}
+
+\subsection{Product Perspective}
+Episode Alerts is a single-user mobile app with a modular, service-oriented architecture. Navigation is handled through Expo Router, with tab-based screens for Home, Search, Watchlist, and Settings, while modal and detail screens support deeper navigation flows. The app depends on TMDB for content data, AsyncStorage for local persistence, and optional Firebase services for cloud synchronization.
+
+\subsection{Product Function}
+At a high level, the product provides the following functions:
+\begin{itemize}
+	\item Discover popular, top-rated, and currently airing television shows.
+	\item Search for shows by title and view detailed information.
+	\item Display season and episode data, including next and last episode details.
+	\item Let users add, remove, and manage shows in a watchlist.
+	\item Notify users about upcoming episodes and release events.
+	\item Store user preferences, analytics settings, and cached content.
+	\item Synchronize selected user data to the cloud when enabled.
+\end{itemize}
+
+\subsection{User Characteristics}
+The primary users are everyday TV viewers who want a simple way to follow multiple shows without manually tracking air dates. Most users are expected to have little or no technical background, so the app needs to stay easy to navigate, visually clear, and responsive. More advanced users may rely more heavily on search, filters, sorting, and settings.
+
+\subsection{General Constraints}
+The system is constrained by the Expo and React Native runtime, the availability of the TMDB API, and platform permission requirements for notifications and, where enabled, cloud features. The app must run on Android, iOS, and web with shared code, and it must keep sensitive values such as API keys outside the source tree. Offline behavior is limited to locally cached data and stored user content.
+
+\subsection{Assumptions and Dependencies}
+The system assumes that TMDB remains available and that the user has network access whenever fresh show data is needed. It also assumes that device permissions can be granted for notifications and that local storage is available for caching and preferences. Optional Firebase features depend on valid configuration and a signed-in user account.
+
+\section{Specific Requirements}
+
+\subsection{External Interface Requirements}
+
+\subsubsection{User Interfaces}
+The user interface shall provide a clean tab-based experience with Home, Search, Watchlist, and Settings screens. Detail pages shall present show metadata, season information, episode lists, and countdown information in a readable layout. The interface shall support light, dark, and system themes, show loading and error states, and remain usable across different screen sizes.
+
+\subsubsection{Hardware Interfaces}
+The application shall support touch input on mobile devices and pointer or keyboard input on web. It shall use device storage for local persistence and, when notifications are enabled, the operating system notification subsystem. If calendar or device-specific sharing features are added in future updates, the app shall request the relevant platform permissions before access.
+
+\subsubsection{Software Interfaces}
+The application shall integrate with the TMDB API for all show, season, and episode data. It shall use AsyncStorage for local caching and user preference storage, Expo Notifications for reminders, Expo Network for connectivity awareness, and optional Firebase authentication and Firestore for cloud synchronization. The app shall also work with React Navigation and Expo Router for screen transitions.
+
+\subsubsection{Communication Interfaces}
+All external data exchange shall use secure HTTPS requests. The app shall communicate with TMDB through REST endpoints and shall use Firebase network services only when cloud sync is configured and the user is signed in. Notification interactions shall be handled through the platform notification response channel so tapping a reminder can open the related show.
+
+\subsection{Functional Requirements}
+
+\subsubsection{Model 1: Discovery and Search}
+\begin{description}[leftmargin=1.8cm, style=nextline]
+	\item[FR-1.1] The system shall load and display popular, top-rated, and currently airing TV shows from TMDB.
+	\item[FR-1.2] The system shall allow the user to search for TV shows by title or keyword.
+	\item[FR-1.3] The system shall present a featured show on the home screen and allow the user to refresh the content.
+	\item[FR-1.4] The system shall use cached data when live data is unavailable so the user can still view previously loaded content.
+\end{description}
+
+\subsubsection{Model 2: Show Details and Seasons}
+\begin{description}[leftmargin=1.8cm, style=nextline]
+	\item[FR-2.1] The system shall display show metadata such as overview, rating, status, genres, and network information.
+	\item[FR-2.2] The system shall display season information and the episodes available for each season.
+	\item[FR-2.3] The system shall show next episode and last episode details when the information is available from TMDB.
+	\item[FR-2.4] The system shall present episode countdown and episode details in a dedicated view.
+\end{description}
+
+\subsubsection{Model 3: Watchlist Management}
+\begin{description}[leftmargin=1.8cm, style=nextline]
+	\item[FR-3.1] The system shall allow the user to add a show to the watchlist from discovery or detail screens.
+	\item[FR-3.2] The system shall allow the user to remove a show from the watchlist.
+	\item[FR-3.3] The system shall persist the watchlist locally so it is available after the app restarts.
+	\item[FR-3.4] The system shall preserve watch progress and watch history for shows in the watchlist.
+	\item[FR-3.5] The system shall support sorting and filtering of watchlist content where applicable in the user interface.
+\end{description}
+
+\subsubsection{Model 4: Notifications and Preferences}
+\begin{description}[leftmargin=1.8cm, style=nextline]
+	\item[FR-4.1] The system shall let the user enable or disable episode notifications.
+	\item[FR-4.2] The system shall request notification permissions before scheduling reminders.
+	\item[FR-4.3] The system shall schedule notifications for upcoming episodes when notifications are enabled.
+	\item[FR-4.4] The system shall allow the user to change theme, analytics, and notification preferences.
+	\item[FR-4.5] The system shall open the relevant show when the user taps a notification.
+\end{description}
+
+\subsubsection{Model 5: Synchronization and Analytics}
+\begin{description}[leftmargin=1.8cm, style=nextline]
+	\item[FR-5.1] The system shall support optional cloud synchronization of watchlist and preference data.
+	\item[FR-5.2] The system shall synchronize local changes to the cloud when the user is signed in and cloud sync is available.
+	\item[FR-5.3] The system shall record screen views and selected user actions when analytics are enabled.
+	\item[FR-5.4] The system shall respect the user’s analytics preference and stop collecting events when analytics are disabled.
+\end{description}
+
+\subsection{Performance Requirements}
+The application should remain responsive while data is loaded or synchronized in the background. Cached content should appear quickly when available, and common actions such as adding or removing a show from the watchlist should finish without noticeable delay. Notification synchronization and cloud synchronization should not block the main user interface.
+
+\subsection{Design Constraints}
+The implementation shall remain within the React Native, Expo, and TypeScript stack already used by the project. The system shall rely on TMDB as the primary content source and shall not require direct changes to third-party services. Local persistence shall continue to use AsyncStorage, and cloud synchronization shall remain optional so the app can still work without Firebase configuration.
+
+\subsection{Attributes}
+The system shall prioritize usability, reliability, portability, maintainability, and security. The interface should be easy to understand for non-technical users, data should persist consistently across sessions, and the codebase should stay modular so new features can be added without major restructuring.
+
+\subsection{Other Attributes}
+The application should support offline use where cached data is available, preserve user privacy by keeping analytics opt-in, and remain practical for everyday mobile use. Future work may extend support for more detailed personalization, additional calendar integration, or broader cloud features without changing the core product goals.

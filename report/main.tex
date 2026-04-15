@@ -1,0 +1,136 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\graphicspath{{images/}}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+\onehalfspacing
+
+\definecolor{ReportBlue}{HTML}{0F172A}
+\definecolor{ReportAccent}{HTML}{2563EB}
+\definecolor{ReportLight}{HTML}{F8FAFC}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=ReportAccent,
+  urlcolor=ReportAccent,
+  citecolor=ReportAccent,
+  pdftitle={Episode Alerts Project Report},
+  pdfauthor={Your Name}
+}
+
+\titleformat{\chapter}[display]
+  {\bfseries\Huge\color{ReportBlue}}
+  {\chaptername\ \thechapter}
+  {1ex}
+  {\filright}
+
+\titleformat{\section}
+  {\Large\bfseries\color{ReportBlue}}
+  {\thesection}
+  {1em}
+  {}
+
+\titleformat{\subsection}
+  {\large\bfseries\color{ReportAccent}}
+  {\thesubsection}
+  {0.75em}
+  {}
+
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{ReportAccent}}
+  {\thesubsubsection}
+  {0.75em}
+  {}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Episode Alerts}
+\fancyhead[R]{Project Report}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\setlength{\headheight}{14.5pt}
+\setcounter{secnumdepth}{3}
+
+\setlist[itemize]{noitemsep, topsep=4pt}
+\setlist[enumerate]{noitemsep, topsep=4pt}
+
+\lstdefinestyle{codeStyle}{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{ReportAccent}\bfseries,
+  commentstyle=\color{gray},
+  stringstyle=\color{ReportBlue},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  stepnumber=1,
+  numbersep=8pt,
+  frame=single,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=2
+}
+
+\newcommand{\placeholdernote}[1]{%
+  \vspace{0.5em}
+  \noindent\textit{#1}
+  \vspace{0.75em}
+}
+
+\begin{document}
+
+\pagenumbering{roman}
+\hypersetup{pageanchor=false}
+
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+
+  {\Huge\bfseries Episode Alerts\par}
+  \vspace{0.35cm}
+  {\Large Mobile Application Project Report\par}
+
+  \vspace{1.75cm}
+  \begin{tabularx}{0.85\textwidth}{>{\bfseries}lX}
+    Project Title: & Episode Alerts Mobile App \\
+    Technology Stack: & React Native, Expo, TypeScript \\
+    Prepared By: & Nandu Krishna M 25CSE2015 \\
+    Prepared For: & Object Oriented Software Engineering Lab \\
+    Date: & \today \\
+  \end{tabularx}
+
+  \vfill
+  {\color{ReportLight}\rule{0.8\textwidth}{1pt}\par}
+  \vspace{0.5cm}
+\end{titlepage}
+\hypersetup{pageanchor=true}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\chapter{SRS}
+\input{sections/srs}
+
+\chapter{Design}
+\input{sections/design}
+
+\chapter{Code}
+\input{sections/code}
+
+\chapter{Results}
+\input{sections/results}
+
+\end{document}

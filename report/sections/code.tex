@@ -1,0 +1,12 @@
+\section{Implementation Overview}
+The codebase is centered around a small set of services that support the app’s main flow: fetching TV data, managing the user’s watchlist, scheduling notifications, and persisting preferences. For this report, the two most important modules are TMDBService and WatchlistService because they drive the core data flow and the user’s personalized tracking experience.
+
+\subsection{TMDBService}
+TMDBService is the app’s main data layer for TV show content. It communicates with TMDB, normalizes show and episode data, and adds caching so the app can keep working even when the network is slow or unavailable. This service is central to the Home, Search, and Show Details screens because almost all show information comes through it.
+
+\lstinputlisting[style=codeStyle]{../app/services/TMDBService.ts}
+
+\subsection{WatchlistService}
+WatchlistService manages the user’s saved shows, watch progress, and watch history. It stores that data locally with AsyncStorage and can trigger cloud synchronization when Firebase is available. This service is important because it supports the app’s personalized experience and connects the watchlist, notifications, and settings features.
+
+\lstinputlisting[style=codeStyle]{../app/services/WatchlistService.ts}
