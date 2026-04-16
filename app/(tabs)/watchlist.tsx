@@ -26,6 +26,7 @@ import WatchlistEmptyState from '@/app/components/watchlist/WatchlistEmptyState'
 import WatchlistFilterModal from '@/app/components/watchlist/WatchlistFilterModal';
 import WatchlistSortModal from '@/app/components/watchlist/WatchlistSortModal';
 import type { FilterOptions, SortConfig, SortOption } from '@/app/components/watchlist/_types';
+import { reportError, showErrorToast } from '@/app/utils/errorHandling';
 
 const { width } = Dimensions.get('window');
 const GRID_CARD_WIDTH = (width - 48) / 2;
@@ -105,8 +106,10 @@ export default function WatchlistScreen() {
       setWatchlist(shows);
       setLastWatchedMap(progressMap);
     } catch (err) {
-      console.error('Error loading watchlist:', err);
-      setError('Failed to load your watchlist. Please try again.');
+      const appError = reportError('WatchlistScreen.loadWatchlist', err, {
+        fallbackMessage: 'Failed to load your watchlist. Please try again.',
+      });
+      setError(appError.message);
     } finally {
       setIsLoading(false);
     }
@@ -128,8 +131,21 @@ export default function WatchlistScreen() {
             text: 'Remove',
             style: 'destructive',
             onPress: async () => {
-              const success = await WatchlistService.removeFromWatchlist(show.id);
-              if (success) {
+              try {
+                const success = await WatchlistService.removeFromWatchlist(show.id);
+                if (!success) {
+                  showErrorToast(
+                    'WatchlistScreen.removeFromWatchlist',
+                    new Error('Watchlist service failed to remove show'),
+                    {
+                      title: 'Remove failed',
+                      fallbackMessage:
+                        'Failed to remove from watchlist. Please try again.',
+                    },
+                  );
+                  return;
+                }
+
                 setWatchlist((prev) => prev.filter((s) => s.id !== id));
 
                 Toast.show({
@@ -143,18 +159,21 @@ export default function WatchlistScreen() {
                   showId: id,
                   showName: show.name,
                 });
+              } catch (removeError) {
+                showErrorToast('WatchlistScreen.removeFromWatchlist', removeError, {
+                  title: 'Remove failed',
+                  fallbackMessage:
+                    'Failed to remove from watchlist. Please try again.',
+                });
               }
             },
           },
         ]
       );
     } catch (err) {
-      console.error('Error removing from watchlist:', err);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to remove from watchlist. Please try again.',
-        position: 'bottom',
+      showErrorToast('WatchlistScreen.removeFromWatchlist', err, {
+        title: 'Remove failed',
+        fallbackMessage: 'Failed to remove from watchlist. Please try again.',
       });
     }
   };
@@ -198,14 +217,21 @@ export default function WatchlistScreen() {
                 await AnalyticsService.trackEvent(EventType.CHANGE_SETTINGS, {
                   action: 'clearWatchlist',
                 });
+              } else {
+                showErrorToast(
+                  'WatchlistScreen.clearWatchlist',
+                  new Error('Watchlist service failed to clear watchlist'),
+                  {
+                    title: 'Clear failed',
+                    fallbackMessage:
+                      'Failed to clear watchlist. Please try again.',
+                  },
+                );
               }
             } catch (clearError) {
-              console.error('Error clearing watchlist:', clearError);
-              Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: 'Failed to clear watchlist. Please try again.',
-                position: 'bottom',
+              showErrorToast('WatchlistScreen.clearWatchlist', clearError, {
+                title: 'Clear failed',
+                fallbackMessage: 'Failed to clear watchlist. Please try again.',
               });
             }
           },
@@ -239,12 +265,9 @@ export default function WatchlistScreen() {
         action: 'undoClearWatchlist',
       });
     } catch (undoError) {
-      console.error('Error restoring cleared watchlist:', undoError);
-      Toast.show({
-        type: 'error',
-        text1: 'Restore Failed',
-        text2: 'Could not restore your previous watchlist.',
-        position: 'bottom',
+      showErrorToast('WatchlistScreen.undoClearWatchlist', undoError, {
+        title: 'Restore failed',
+        fallbackMessage: 'Could not restore your previous watchlist.',
       });
     }
   };

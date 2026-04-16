@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { reportError } from '@/app/utils/errorHandling';
 
 const IMAGE_CACHE_ENABLED_KEY = '@EpisodeAlerts:imageCacheEnabled';
 const IMAGE_CACHE_DIR = new Directory(Paths.cache, 'images');
@@ -143,7 +144,9 @@ class ImageCacheService {
         IMAGE_CACHE_DIR.create({ intermediates: true, idempotent: true });
       }
     } catch (error) {
-      console.error('Error setting up cache directory:', error);
+      reportError('ImageCacheService.setupCacheDirectory', error, {
+        fallbackMessage: 'Failed to setup image cache directory.',
+      });
     }
   }
 
@@ -153,7 +156,9 @@ class ImageCacheService {
       this.isEnabled = cacheEnabled !== 'false';
       await this.calculateCacheSize();
     } catch (error) {
-      console.error('Error loading cache settings:', error);
+      reportError('ImageCacheService.loadSettings', error, {
+        fallbackMessage: 'Failed to load image cache settings.',
+      });
     }
   }
 
@@ -210,7 +215,9 @@ class ImageCacheService {
         await this.trimCache();
       }
     } catch (error) {
-      console.error('Error updating cache size:', error);
+      reportError('ImageCacheService.updateCacheSize', error, {
+        fallbackMessage: 'Failed to update image cache size.',
+      });
     }
   }
 
@@ -259,7 +266,9 @@ class ImageCacheService {
       // Update the cache size
       await this.calculateCacheSize();
     } catch (error) {
-      console.error('Error trimming cache:', error);
+      reportError('ImageCacheService.trimCache', error, {
+        fallbackMessage: 'Failed to trim image cache.',
+      });
     }
   }
 
@@ -272,7 +281,9 @@ class ImageCacheService {
       
       this.cacheSize = 0;
     } catch (error) {
-      console.error('Error clearing cache:', error);
+      reportError('ImageCacheService.clearCache', error, {
+        fallbackMessage: 'Failed to clear image cache.',
+      });
     }
   }
 
@@ -286,7 +297,9 @@ class ImageCacheService {
       
       return this.cacheSize;
     } catch (error) {
-      console.error('Error calculating cache size:', error);
+      reportError('ImageCacheService.calculateCacheSize', error, {
+        fallbackMessage: 'Failed to calculate image cache size.',
+      });
       return 0;
     }
   }

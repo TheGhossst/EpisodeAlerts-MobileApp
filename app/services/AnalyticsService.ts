@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import UserPreferencesService from './UserPreferencesService';
+import { reportError } from '@/app/utils/errorHandling';
 
 const ANALYTICS_STORAGE_KEY = '@EpisodeAlerts:analytics';
 const SESSION_START_KEY = '@EpisodeAlerts:sessionStart';
@@ -82,7 +83,10 @@ class AnalyticsService {
       
       await this.startSession();
     } catch (error) {
-      console.error('Error initializing analytics service:', error);
+      reportError('AnalyticsService.initialize', error, {
+        fallbackMessage: 'Failed to initialize analytics service.',
+        trackAnalytics: false,
+      });
     }
   }
   
@@ -116,7 +120,10 @@ class AnalyticsService {
       
       console.log('Analytics event tracked:', event);
     } catch (error) {
-      console.error('Error tracking event:', error);
+      reportError('AnalyticsService.trackEvent', error, {
+        fallbackMessage: 'Failed to track analytics event.',
+        trackAnalytics: false,
+      });
     }
   }
   
@@ -182,7 +189,10 @@ class AnalyticsService {
         sessionId,
       });
     } catch (error) {
-      console.error('Error starting session:', error);
+      reportError('AnalyticsService.startSession', error, {
+        fallbackMessage: 'Failed to start analytics session.',
+        trackAnalytics: false,
+      });
     }
   }
   
@@ -214,7 +224,10 @@ class AnalyticsService {
       await AsyncStorage.removeItem(SESSION_START_KEY);
       this.currentSession = undefined;
     } catch (error) {
-      console.error('Error ending session:', error);
+      reportError('AnalyticsService.endSession', error, {
+        fallbackMessage: 'Failed to end analytics session.',
+        trackAnalytics: false,
+      });
     }
   }
   
@@ -254,7 +267,10 @@ class AnalyticsService {
           : [];
       }
     } catch (error) {
-      console.error('Error loading analytics events:', error);
+      reportError('AnalyticsService.loadEvents', error, {
+        fallbackMessage: 'Failed to load analytics events.',
+        trackAnalytics: false,
+      });
     }
   }
   
@@ -263,7 +279,10 @@ class AnalyticsService {
     try {
       await AsyncStorage.setItem(ANALYTICS_STORAGE_KEY, JSON.stringify(this.events));
     } catch (error) {
-      console.error('Error saving analytics events:', error);
+      reportError('AnalyticsService.saveEvents', error, {
+        fallbackMessage: 'Failed to save analytics events.',
+        trackAnalytics: false,
+      });
     }
   }
 

@@ -1,5 +1,6 @@
 import { TMDB_CONFIG, API_KEY } from '../../constants/Config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { reportError } from '@/app/utils/errorHandling';
 
 export interface TVShow {
   id: number;
@@ -193,7 +194,10 @@ class TMDBService {
         });
         this.isCacheHydrated = true;
       } catch (error) {
-        console.error('Error hydrating TMDB cache:', error);
+        reportError('TMDBService.ensureCacheHydrated', error, {
+          fallbackMessage: 'Failed to hydrate cached API data.',
+          trackAnalytics: false,
+        });
         this.isCacheHydrated = true;
       } finally {
         this.hydratePromise = null;
@@ -262,7 +266,10 @@ class TMDBService {
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
       this.persistCache().catch((error) => {
-        console.error('Error persisting TMDB cache:', error);
+        reportError('TMDBService.persistCache', error, {
+          fallbackMessage: 'Failed to persist cached API data.',
+          trackAnalytics: false,
+        });
       });
     }, PERSIST_DEBOUNCE_MS);
   }
@@ -329,8 +336,9 @@ class TMDBService {
           return cachedResponse.data;
         }
 
-        console.error('API fetch error:', error);
-        throw error;
+        throw reportError('TMDBService.fetchAPI', error, {
+          fallbackMessage: 'Unable to load data from server. Please try again.',
+        });
       } finally {
         this.inFlightRequests.delete(cacheKey);
       }

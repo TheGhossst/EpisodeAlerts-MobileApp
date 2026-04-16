@@ -5,10 +5,10 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { router, Stack } from 'expo-router';
+import { router, Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { ThemeProvider as AppThemeProvider, useTheme } from '@/app/context/ThemeContext';
 import { NetworkStatusProvider } from '@/app/context/NetworkStatusContext';
@@ -17,11 +17,40 @@ import AppToast from '@/app/components/AppToast';
 import AnalyticsService from '@/app/services/AnalyticsService';
 import CloudSyncService from '@/app/services/CloudSyncService';
 import NotificationService from '@/app/services/NotificationService';
+import { normalizeAppError, reportError } from '@/app/utils/errorHandling';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const appError = normalizeAppError(error, {
+    source: 'RootLayout.ErrorBoundary',
+    fallbackMessage: 'An unexpected app error occurred. Please try again.',
+  });
+
+  useEffect(() => {
+    reportError('RootLayout.ErrorBoundary', error, {
+      fallbackMessage: 'An unexpected app error occurred. Please try again.',
+    });
+  }, [error]);
+
+  return (
+    <View style={errorStyles.container}>
+      <Text style={errorStyles.title}>Something went wrong</Text>
+      <Text style={errorStyles.message}>{appError.message}</Text>
+      <View style={errorStyles.actionsRow}>
+        <Pressable style={errorStyles.retryButton} onPress={retry}>
+          <Text style={errorStyles.retryButtonText}>Try Again</Text>
+        </Pressable>
+        <Pressable
+          style={errorStyles.secondaryButton}
+          onPress={() => {
+            router.replace('/(tabs)');
+          }}
+        >
+          <Text style={errorStyles.secondaryButtonText}>Go Home</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
@@ -64,7 +93,9 @@ export default function RootLayout() {
           CloudSyncService.syncToCloudIfSignedIn(),
         ]);
       } catch (error) {
-        console.error('Error initializing runtime services:', error);
+        reportError('RootLayout.initializeRuntimeServices', error, {
+          fallbackMessage: 'Failed to initialize runtime services.',
+        });
       } finally {
         setRuntimeReady(true);
       }
@@ -116,6 +147,58 @@ export default function RootLayout() {
     </AppThemeProvider>
   );
 }
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#111827',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  title: {
+    color: '#F9FAFB',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  message: {
+    marginTop: 14,
+    color: '#D1D5DB',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  actionsRow: {
+    marginTop: 22,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  retryButton: {
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  secondaryButton: {
+    backgroundColor: '#1F2937',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  secondaryButtonText: {
+    color: '#F9FAFB',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+});
 
 function RootLayoutNav() {
   const { theme } = useTheme();

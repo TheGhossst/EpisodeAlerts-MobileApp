@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import TMDBService, { TVShow, Episode } from "./TMDBService";
 import WatchlistService from "./WatchlistService";
+import { reportError } from "@/app/utils/errorHandling";
 
 const NOTIFICATIONS_ENABLED_KEY = "@EpisodeAlerts:notificationsEnabled";
 const NOTIFICATION_SCHEDULE_KEY = "@EpisodeAlerts:notificationSchedule";
@@ -64,7 +65,9 @@ class NotificationService {
 
       return this.isEnabled;
     } catch (error) {
-      console.error("Error initializing notifications:", error);
+      reportError("NotificationService.initialize", error, {
+        fallbackMessage: "Failed to initialize notifications.",
+      });
       return false;
     }
   }
@@ -103,7 +106,10 @@ class NotificationService {
 
       return true;
     } catch (error) {
-      console.error("Error requesting notification permissions:", error);
+      reportError("NotificationService.requestPermissions", error, {
+        fallbackMessage:
+          "Failed to request notification permissions. Please try again.",
+      });
       return false;
     }
   }
@@ -128,8 +134,9 @@ class NotificationService {
         await this.cancelAllNotifications();
       }
     } catch (error) {
-      console.error("Error setting notification enabled state:", error);
-      throw error;
+      throw reportError("NotificationService.setEnabled", error, {
+        fallbackMessage: "Failed to update notification settings.",
+      });
     }
   }
 
@@ -200,7 +207,14 @@ class NotificationService {
           this.handleNotificationResponse(response, onShowPress);
         })
         .catch((error) => {
-          console.error("Error reading initial notification response:", error);
+          reportError(
+            "NotificationService.registerNotificationTapHandler",
+            error,
+            {
+              fallbackMessage: "Failed to process initial notification tap.",
+              trackAnalytics: false,
+            },
+          );
         });
     }
 
@@ -320,7 +334,9 @@ class NotificationService {
       await this.saveScheduledNotification(newNotification);
       return notificationId;
     } catch (error) {
-      console.error("Error scheduling episode notification:", error);
+      reportError("NotificationService.scheduleEpisodeNotification", error, {
+        fallbackMessage: "Failed to schedule episode notification.",
+      });
       return null;
     }
   }
@@ -392,7 +408,13 @@ class NotificationService {
       await this.saveNotifiedReleaseEpisodesMap(notifiedMap);
       await AsyncStorage.setItem(RELEASE_CHECK_LAST_RUN_KEY, now.toString());
     } catch (error) {
-      console.error("Error syncing watchlist release notifications:", error);
+      reportError(
+        "NotificationService.syncWatchlistReleaseNotifications",
+        error,
+        {
+          fallbackMessage: "Failed to sync watchlist release notifications.",
+        },
+      );
     }
   }
 
@@ -415,8 +437,9 @@ class NotificationService {
       );
       await this.saveScheduledNotifications(updatedNotifications);
     } catch (error) {
-      console.error("Error canceling show notifications:", error);
-      throw error;
+      throw reportError("NotificationService.cancelShowNotifications", error, {
+        fallbackMessage: "Failed to cancel show notifications.",
+      });
     }
   }
 
@@ -426,8 +449,9 @@ class NotificationService {
       await AsyncStorage.removeItem(NOTIFICATION_SCHEDULE_KEY);
       console.log("All notifications canceled");
     } catch (error) {
-      console.error("Error canceling all notifications:", error);
-      throw error;
+      throw reportError("NotificationService.cancelAllNotifications", error, {
+        fallbackMessage: "Failed to cancel notifications.",
+      });
     }
   }
 
@@ -476,7 +500,9 @@ class NotificationService {
       );
       return jsonValue ? JSON.parse(jsonValue) : {};
     } catch (error) {
-      console.error("Error loading notified release episodes:", error);
+      reportError("NotificationService.getNotifiedReleaseEpisodesMap", error, {
+        fallbackMessage: "Failed to load notification history.",
+      });
       return {};
     }
   }
@@ -490,7 +516,9 @@ class NotificationService {
         JSON.stringify(map),
       );
     } catch (error) {
-      console.error("Error saving notified release episodes:", error);
+      reportError("NotificationService.saveNotifiedReleaseEpisodesMap", error, {
+        fallbackMessage: "Failed to save notification history.",
+      });
     }
   }
 
@@ -500,7 +528,9 @@ class NotificationService {
       const jsonValue = await AsyncStorage.getItem(NOTIFICATION_SCHEDULE_KEY);
       return jsonValue ? JSON.parse(jsonValue) : [];
     } catch (error) {
-      console.error("Error getting scheduled notifications:", error);
+      reportError("NotificationService.getScheduledNotifications", error, {
+        fallbackMessage: "Failed to load scheduled notifications.",
+      });
       return [];
     }
   }
@@ -517,8 +547,9 @@ class NotificationService {
       ];
       await this.saveScheduledNotifications(updatedNotifications);
     } catch (error) {
-      console.error("Error saving scheduled notification:", error);
-      throw error;
+      throw reportError("NotificationService.saveScheduledNotification", error, {
+        fallbackMessage: "Failed to save scheduled notification.",
+      });
     }
   }
 
@@ -532,8 +563,9 @@ class NotificationService {
         JSON.stringify(notifications),
       );
     } catch (error) {
-      console.error("Error saving scheduled notifications:", error);
-      throw error;
+      throw reportError("NotificationService.saveScheduledNotifications", error, {
+        fallbackMessage: "Failed to save notification schedule.",
+      });
     }
   }
 }

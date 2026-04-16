@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import UserPreferencesService, { ThemeType } from '../services/UserPreferencesService';
+import { reportError } from '@/app/utils/errorHandling';
 
 export interface ThemeColors {
   // Background colors
@@ -134,7 +135,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         setThemeState(resolveTheme(userThemeMode, systemColorScheme));
         setIsInitialized(true);
       } catch (error) {
-        console.error('Error initializing theme:', error);
+        reportError('ThemeContext.initializeTheme', error, {
+          fallbackMessage: 'Failed to initialize app theme.',
+        });
         setIsInitialized(true);
       }
     };
@@ -153,7 +156,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       setThemeState(resolveTheme(mode, systemColorScheme));
       await UserPreferencesService.setTheme(mode);
     } catch (error) {
-      console.error('Error updating theme:', error);
+      reportError('ThemeContext.updateTheme', error, {
+        fallbackMessage: 'Failed to update app theme.',
+      });
     }
   };
   

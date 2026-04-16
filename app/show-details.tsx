@@ -38,6 +38,7 @@ import { SkeletonDetails } from "@/app/components/SkeletonLoader";
 import EpisodeCountdown from "@/app/components/EpisodeCountdown";
 import Toast from "react-native-toast-message";
 import StaleDataIndicator from "@/app/components/StaleDataIndicator";
+import { reportError, showErrorAlert, showErrorToast } from "@/app/utils/errorHandling";
 
 const { width } = Dimensions.get("window");
 
@@ -124,8 +125,10 @@ export default function ShowDetailsScreen() {
       setIsUsingStaleData(TMDBService.consumeStaleFallbackFlag());
       setLastUpdatedAt(TMDBService.getLastCachedDataUpdatedAt());
     } catch (err) {
-      console.error("Error loading show details:", err);
-      setError("Failed to load show details. Please try again.");
+      const appError = reportError("ShowDetailsScreen.loadData", err, {
+        fallbackMessage: "Failed to load show details. Please try again.",
+      });
+      setError(appError.message);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -145,7 +148,10 @@ export default function ShowDetailsScreen() {
         }));
       }
     } catch (error) {
-      console.error(`Error loading season ${seasonNumber} episodes:`, error);
+      showErrorToast("ShowDetailsScreen.loadSeasonEpisodes", error, {
+        title: "Season load failed",
+        fallbackMessage: `Failed to load episodes for season ${seasonNumber}.`,
+      });
     }
   };
 
@@ -203,63 +209,71 @@ export default function ShowDetailsScreen() {
         }
       }
     } catch (err) {
-      console.error("Error toggling watchlist:", err);
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Failed to update watchlist. Please try again.",
-        position: "bottom",
+      showErrorToast("ShowDetailsScreen.handleWatchlistToggle", err, {
+        title: "Watchlist update failed",
+        fallbackMessage: "Failed to update watchlist. Please try again.",
       });
     }
   };
 
   const handleSetLastWatchedEpisode = async (episode: Episode) => {
-    if (!show) return;
-
-    let wasAddedToWatchlist = false;
-    if (!isInWatchlist) {
-      const addSuccess = await WatchlistService.addToWatchlist(show);
-      if (addSuccess || (await WatchlistService.isInWatchlist(show.id))) {
-        setIsInWatchlist(true);
-        wasAddedToWatchlist = true;
-      }
-    }
-
-    const success = await WatchlistService.setLastWatchedEpisode(
-      show.id,
-      show.name,
-      episode,
-    );
-    if (!success) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Failed to save progress. Please try again.",
-        position: "bottom",
-      });
+    if (!show) {
       return;
     }
 
-    setLastWatchedEpisode({
-      showId: show.id,
-      showName: show.name,
-      seasonNumber: episode.season_number,
-      episodeNumber: episode.episode_number,
-      episodeName: episode.name,
-      watchedAt: Date.now(),
-    });
+    try {
+      let wasAddedToWatchlist = false;
+      if (!isInWatchlist) {
+        const addSuccess = await WatchlistService.addToWatchlist(show);
+        if (addSuccess || (await WatchlistService.isInWatchlist(show.id))) {
+          setIsInWatchlist(true);
+          wasAddedToWatchlist = true;
+        }
+      }
 
-    const history = await WatchlistService.getWatchHistory(show.id);
-    setWatchHistory(history);
+      const success = await WatchlistService.setLastWatchedEpisode(
+        show.id,
+        show.name,
+        episode,
+      );
+      if (!success) {
+        showErrorToast(
+          "ShowDetailsScreen.handleSetLastWatchedEpisode",
+          new Error("WatchlistService failed to persist last watched episode"),
+          {
+            title: "Progress update failed",
+            fallbackMessage: "Failed to save progress. Please try again.",
+          },
+        );
+        return;
+      }
 
-    Toast.show({
-      type: "success",
-      text1: "Progress updated",
-      text2: wasAddedToWatchlist
-        ? `Added to watchlist and set to S${episode.season_number}E${episode.episode_number}`
-        : `Last watched set to S${episode.season_number}E${episode.episode_number}`,
-      position: "bottom",
-    });
+      setLastWatchedEpisode({
+        showId: show.id,
+        showName: show.name,
+        seasonNumber: episode.season_number,
+        episodeNumber: episode.episode_number,
+        episodeName: episode.name,
+        watchedAt: Date.now(),
+      });
+
+      const history = await WatchlistService.getWatchHistory(show.id);
+      setWatchHistory(history);
+
+      Toast.show({
+        type: "success",
+        text1: "Progress updated",
+        text2: wasAddedToWatchlist
+          ? `Added to watchlist and set to S${episode.season_number}E${episode.episode_number}`
+          : `Last watched set to S${episode.season_number}E${episode.episode_number}`,
+        position: "bottom",
+      });
+    } catch (error) {
+      showErrorToast("ShowDetailsScreen.handleSetLastWatchedEpisode", error, {
+        title: "Progress update failed",
+        fallbackMessage: "Failed to save progress. Please try again.",
+      });
+    }
   };
 
   const scheduleNotification = async () => {
@@ -272,7 +286,9 @@ export default function ShowDetailsScreen() {
         console.log(`Notification scheduled with ID: ${notificationId}`);
       }
     } catch (error) {
-      console.error("Error scheduling notification:", error);
+      reportError("ShowDetailsScreen.scheduleNotification", error, {
+        fallbackMessage: "Failed to schedule notification for this episode.",
+      });
     }
   };
 
@@ -338,11 +354,10 @@ export default function ShowDetailsScreen() {
         }
       }
 
-      console.error("Error adding episode to calendar:", calendarError);
-      Alert.alert(
-        "Calendar Error",
-        "Could not add the episode to your calendar right now.",
-      );
+      showErrorAlert("ShowDetailsScreen.handleAddNextEpisodeToCalendar", calendarError, {
+        title: "Calendar Error",
+        fallbackMessage: "Could not add the episode to your calendar right now.",
+      });
     }
   };
 

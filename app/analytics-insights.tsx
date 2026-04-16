@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useFocusEffect } from 'expo-router';
 import AnalyticsService, { type AnalyticsEvent } from '@/app/services/AnalyticsService';
 import { useTheme } from '@/app/context/ThemeContext';
+import { showErrorAlert } from '@/app/utils/errorHandling';
 
 const DAILY_WINDOW_DAYS = 7;
 const GRAPH_HEIGHT = 220;
@@ -81,8 +82,10 @@ export default function AnalyticsInsightsScreen() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setEvents(localEvents);
     } catch (error) {
-      console.error('Error loading analytics insights:', error);
-      Alert.alert('Analytics Error', 'Could not load local analytics data.');
+      showErrorAlert('AnalyticsInsightsScreen.loadAnalytics', error, {
+        title: 'Analytics Error',
+        fallbackMessage: 'Could not load local analytics data.',
+      });
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -214,7 +217,14 @@ export default function AnalyticsInsightsScreen() {
           text: 'Clear',
           style: 'destructive',
           onPress: () => {
-            void AnalyticsService.clearEvents().then(() => loadAnalytics(true));
+            void AnalyticsService.clearEvents()
+              .then(() => loadAnalytics(true))
+              .catch((error) => {
+                showErrorAlert('AnalyticsInsightsScreen.clearAnalytics', error, {
+                  title: 'Clear Failed',
+                  fallbackMessage: 'Could not clear local analytics data.',
+                });
+              });
           },
         },
       ],

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationService from './NotificationService';
+import { reportError } from '@/app/utils/errorHandling';
 
 const THEME_KEY = '@EpisodeAlerts:theme';
 const ANALYTICS_ENABLED_KEY = '@EpisodeAlerts:analyticsEnabled';
@@ -52,7 +53,9 @@ class UserPreferencesService {
     void import('./CloudSyncService')
       .then((module) => module.default.syncToCloudIfSignedIn())
       .catch((error) => {
-        console.error('Error triggering cloud sync from preferences:', error);
+        reportError('UserPreferencesService.triggerCloudSync', error, {
+          fallbackMessage: 'Cloud sync could not be triggered from preferences.',
+        });
       });
   }
 
@@ -101,7 +104,9 @@ class UserPreferencesService {
       this.initialized = true;
       return this.preferences;
     } catch (error) {
-      console.error('Error initializing user preferences:', error);
+      reportError('UserPreferencesService.initialize', error, {
+        fallbackMessage: 'Failed to initialize user preferences.',
+      });
       return this.preferences;
     }
   }
@@ -128,8 +133,9 @@ class UserPreferencesService {
         this.triggerCloudSync();
       }
     } catch (error) {
-      console.error('Error setting theme:', error);
-      throw error;
+      throw reportError('UserPreferencesService.setTheme', error, {
+        fallbackMessage: 'Failed to update theme preferences.',
+      });
     }
   }
 
@@ -145,8 +151,9 @@ class UserPreferencesService {
         this.triggerCloudSync();
       }
     } catch (error) {
-      console.error('Error setting notifications:', error);
-      throw error;
+      throw reportError('UserPreferencesService.setNotificationsEnabled', error, {
+        fallbackMessage: 'Failed to update notification preferences.',
+      });
     }
   }
 
@@ -160,8 +167,9 @@ class UserPreferencesService {
         this.triggerCloudSync();
       }
     } catch (error) {
-      console.error('Error setting analytics:', error);
-      throw error;
+      throw reportError('UserPreferencesService.setAnalyticsEnabled', error, {
+        fallbackMessage: 'Failed to update analytics preferences.',
+      });
     }
   }
 
@@ -197,8 +205,9 @@ class UserPreferencesService {
         this.triggerCloudSync();
       }
     } catch (error) {
-      console.error('Error applying synced preferences:', error);
-      throw error;
+      throw reportError('UserPreferencesService.applySyncedPreferences', error, {
+        fallbackMessage: 'Failed to apply synced preferences.',
+      });
     }
   }
 
@@ -234,8 +243,9 @@ class UserPreferencesService {
       this.notifyListeners();
       this.triggerCloudSync();
     } catch (error) {
-      console.error('Error resetting preferences:', error);
-      throw error;
+      throw reportError('UserPreferencesService.resetPreferences', error, {
+        fallbackMessage: 'Failed to reset preferences.',
+      });
     }
   }
 

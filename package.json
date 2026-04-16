@@ -10,8 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watchAll",
     "typecheck": "tsc --noEmit",
-    "doctor": "npx expo-doctor",
-    "build": "cd android && ./gradlew assembleRelease"
+    "doctor": "npx expo-doctor"
   },
   "jest": {
     "preset": "jest-expo",

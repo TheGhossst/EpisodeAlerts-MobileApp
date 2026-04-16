@@ -11,6 +11,7 @@ import SearchResultsList from '@/app/components/search/SearchResultsList';
 import { useTheme } from '@/app/context/ThemeContext';
 import AnalyticsService, { EventType } from '@/app/services/AnalyticsService';
 import StaleDataIndicator from '@/app/components/StaleDataIndicator';
+import { reportError } from '@/app/utils/errorHandling';
 
 export default function SearchScreen() {
   const { theme } = useTheme();
@@ -97,9 +98,11 @@ export default function SearchScreen() {
         });
       }
     } catch (err) {
-      console.error('Search error:', err);
+      const appError = reportError('SearchScreen.loadSearchPage', err, {
+        fallbackMessage: 'Failed to search. Please try again.',
+      });
       if (requestId === latestRequestId.current) {
-        setError('Failed to search. Please try again.');
+        setError(appError.message);
       }
     } finally {
       if (requestId === latestRequestId.current) {

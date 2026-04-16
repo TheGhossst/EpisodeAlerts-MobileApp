@@ -20,6 +20,7 @@ import HomeFeaturedBanner from '@/app/components/home/HomeFeaturedBanner';
 import HomeShowSection from '@/app/components/home/HomeShowSection';
 import { getAiringTodayStatusText } from '@/app/components/home/_utils';
 import StaleDataIndicator from '@/app/components/StaleDataIndicator';
+import { reportError, showErrorToast } from '@/app/utils/errorHandling';
 
 export default function HomeScreen() {
   const { theme } = useTheme();
@@ -69,7 +70,9 @@ export default function HomeScreen() {
         setRecentlyViewedShows([]);
       }
     } catch (err) {
-      console.error('Error loading watchlist:', err);
+      reportError('HomeScreen.loadWatchlist', err, {
+        fallbackMessage: 'Failed to load watchlist data.',
+      });
     }
   };
 
@@ -100,8 +103,10 @@ export default function HomeScreen() {
       setIsUsingStaleData(TMDBService.consumeStaleFallbackFlag());
       setLastUpdatedAt(TMDBService.getLastCachedDataUpdatedAt());
     } catch (err) {
-      console.error('Error loading data:', err);
-      setError('Failed to load TV show data. Please try again.');
+      const appError = reportError('HomeScreen.loadData', err, {
+        fallbackMessage: 'Failed to load TV show data. Please try again.',
+      });
+      setError(appError.message);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -155,12 +160,9 @@ export default function HomeScreen() {
         });
       }
     } catch (err) {
-      console.error('Error toggling watchlist:', err);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to update watchlist. Please try again.',
-        position: 'bottom',
+      showErrorToast('HomeScreen.handleToggleWatchlist', err, {
+        title: 'Watchlist update failed',
+        fallbackMessage: 'Failed to update watchlist. Please try again.',
       });
     }
   };

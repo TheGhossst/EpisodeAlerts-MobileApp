@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import * as Network from 'expo-network';
+import { reportError } from '@/app/utils/errorHandling';
 
 export interface NetworkStatus {
   isConnected: boolean;
@@ -43,7 +44,10 @@ export function NetworkStatusProvider({ children }: NetworkStatusProviderProps) 
         const currentState = await Network.getNetworkStateAsync();
         applyNetworkState(currentState);
       } catch (error) {
-        console.error('Error loading network state:', error);
+        reportError('NetworkStatusContext.loadInitialState', error, {
+          fallbackMessage: 'Failed to load network state.',
+          trackAnalytics: false,
+        });
         setStatus({
           ...defaultStatus,
           isInitialized: true,

@@ -16,6 +16,7 @@ import { useTheme } from "@/app/context/ThemeContext";
 import AnalyticsService from "@/app/services/AnalyticsService";
 import StaleDataIndicator from "@/app/components/StaleDataIndicator";
 import { useNetworkStatus } from "@/app/context/NetworkStatusContext";
+import { reportError } from "@/app/utils/errorHandling";
 
 export default function SeasonDetailsScreen() {
   const { theme } = useTheme();
@@ -68,11 +69,13 @@ export default function SeasonDetailsScreen() {
         setIsUsingStaleData(TMDBService.consumeStaleFallbackFlag());
         setLastUpdatedAt(TMDBService.getLastCachedDataUpdatedAt());
       } catch (err) {
-        console.error("Error loading season details:", err);
+        const appError = reportError("SeasonDetailsScreen.loadData", err, {
+          fallbackMessage: "Failed to load season details. Please try again.",
+        });
         setError(
           isOffline
             ? "You are offline and this season is not available in cache yet."
-            : "Failed to load season details. Please try again.",
+            : appError.message,
         );
       } finally {
         setIsLoading(false);
@@ -100,7 +103,14 @@ export default function SeasonDetailsScreen() {
   };
 
   const handleImageError = () => {
-    console.error("Image failed to load");
+    reportError(
+      "SeasonDetailsScreen.handleImageError",
+      new Error("Episode image failed to load"),
+      {
+        fallbackMessage: "Episode image could not be loaded.",
+        trackAnalytics: false,
+      },
+    );
   };
 
   const handleBackPress = () => {

@@ -20,6 +20,7 @@ import {
 import { FIREBASE_CONFIG, isFirebaseConfigured } from "@/constants/Config";
 import WatchlistService from "./WatchlistService";
 import UserPreferencesService from "./UserPreferencesService";
+import { reportError } from "@/app/utils/errorHandling";
 
 const LAST_SYNC_TIME_KEY = "@EpisodeAlerts:lastCloudSyncAt";
 const AUTO_SYNC_INTERVAL_MS = 3 * 60 * 1000;
@@ -74,12 +75,19 @@ class CloudSyncService {
       return;
     }
 
-    this.app = getApps().length > 0 ? getApp() : initializeApp(FIREBASE_CONFIG);
+    try {
+      this.app =
+        getApps().length > 0 ? getApp() : initializeApp(FIREBASE_CONFIG);
 
-    this.auth = getAuth(this.app);
+      this.auth = getAuth(this.app);
 
-    this.firestore = getFirestore(this.app);
-    this.initialized = true;
+      this.firestore = getFirestore(this.app);
+      this.initialized = true;
+    } catch (error) {
+      throw reportError("CloudSyncService.initialize", error, {
+        fallbackMessage: "Failed to initialize cloud sync.",
+      });
+    }
   }
 
   public isAvailable(): boolean {
@@ -107,7 +115,13 @@ class CloudSyncService {
       throw new Error("Cloud sync is not configured.");
     }
 
-    await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    try {
+      await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    } catch (error) {
+      throw reportError("CloudSyncService.signIn", error, {
+        fallbackMessage: "Could not sign in. Please try again.",
+      });
+    }
 
     // Run cloud bootstrap in background so auth UI is not blocked by network conditions.
     this.runBootstrapAfterAuth("sign-in");
@@ -119,7 +133,13 @@ class CloudSyncService {
       throw new Error("Cloud sync is not configured.");
     }
 
-    await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+    try {
+      await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+    } catch (error) {
+      throw reportError("CloudSyncService.signUp", error, {
+        fallbackMessage: "Could not create your account. Please try again.",
+      });
+    }
 
     // Run cloud bootstrap in background so auth UI is not blocked by network conditions.
     this.runBootstrapAfterAuth("sign-up");
@@ -186,10 +206,9 @@ class CloudSyncService {
         }
       })
       .catch((error) => {
-        console.error(
-          `Unexpected cloud bootstrap error after ${source}:`,
-          error,
-        );
+        reportError(`CloudSyncService.bootstrapAfterAuth.${source}`, error, {
+          fallbackMessage: "Cloud bootstrap failed after authentication.",
+        });
       })
       .finally(() => {
         this.startAutoSync();
@@ -252,7 +271,9 @@ class CloudSyncService {
       await this.performSyncToCloud(user);
       return true;
     } catch (error) {
-      console.error("Error auto syncing cloud data:", error);
+      reportError("CloudSyncService.syncToCloudIfSignedIn", error, {
+        fallbackMessage: "Automatic cloud sync failed.",
+      });
       return false;
     } finally {
       this.isSyncInProgress = false;
@@ -289,7 +310,9 @@ class CloudSyncService {
           return "skipped";
         }
 
-        console.error("Error restoring cloud data during bootstrap:", error);
+        reportError("CloudSyncService.bootstrapSignedInData.download", error, {
+          fallbackMessage: "Failed to restore cloud data during bootstrap.",
+        });
       }
 
       if (restored) {
@@ -314,7 +337,9 @@ class CloudSyncService {
           return "skipped";
         }
 
-        console.error("Error uploading cloud data during bootstrap:", error);
+        reportError("CloudSyncService.bootstrapSignedInData.upload", error, {
+          fallbackMessage: "Failed to upload cloud data during bootstrap.",
+        });
         return "skipped";
       }
     } finally {

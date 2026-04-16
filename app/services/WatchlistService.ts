@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TVShow, Episode } from './TMDBService';
+import { reportError } from '@/app/utils/errorHandling';
 
 const WATCHLIST_STORAGE_KEY = '@EpisodeAlerts:watchlist';
 const WATCH_PROGRESS_STORAGE_KEY = '@EpisodeAlerts:watchProgress';
@@ -45,7 +46,9 @@ class WatchlistService {
     void import('./CloudSyncService')
       .then((module) => module.default.syncToCloudIfSignedIn())
       .catch((error) => {
-        console.error('Error triggering cloud sync:', error);
+        reportError('WatchlistService.triggerCloudSync', error, {
+          fallbackMessage: 'Cloud sync could not be triggered.',
+        });
       });
   }
 
@@ -101,7 +104,9 @@ class WatchlistService {
       await this.saveWatchlistEntries(normalized);
       return normalized;
     } catch (error) {
-      console.error('Error getting watchlist entries:', error);
+      reportError('WatchlistService.getWatchlistEntries', error, {
+        fallbackMessage: 'Unable to load watchlist entries.',
+      });
       return [];
     }
   }
@@ -118,7 +123,9 @@ class WatchlistService {
         addedAt: entry.addedAt,
       }));
     } catch (error) {
-      console.error('Error getting watchlist:', error);
+      reportError('WatchlistService.getWatchlist', error, {
+        fallbackMessage: 'Unable to load your watchlist.',
+      });
       return [];
     }
   }
@@ -152,7 +159,9 @@ class WatchlistService {
 
       return true;
     } catch (error) {
-      console.error('Error restoring watchlist snapshot:', error);
+      reportError('WatchlistService.restoreWatchlistSnapshot', error, {
+        fallbackMessage: 'Unable to restore watchlist snapshot.',
+      });
       return false;
     }
   }
@@ -179,7 +188,9 @@ class WatchlistService {
       this.triggerCloudSync();
       return true;
     } catch (error) {
-      console.error('Error adding to watchlist:', error);
+      reportError('WatchlistService.addToWatchlist', error, {
+        fallbackMessage: 'Unable to add this show to your watchlist.',
+      });
       return false;
     }
   }
@@ -195,7 +206,9 @@ class WatchlistService {
       this.triggerCloudSync();
       return true;
     } catch (error) {
-      console.error('Error removing from watchlist:', error);
+      reportError('WatchlistService.removeFromWatchlist', error, {
+        fallbackMessage: 'Unable to remove this show from your watchlist.',
+      });
       return false;
     }
   }
@@ -205,7 +218,10 @@ class WatchlistService {
       const watchlist = await this.getWatchlistEntries();
       return watchlist.some((show) => show.show.id === showId);
     } catch (error) {
-      console.error('Error checking watchlist:', error);
+      reportError('WatchlistService.isInWatchlist', error, {
+        fallbackMessage: 'Unable to check watchlist status.',
+        trackAnalytics: false,
+      });
       return false;
     }
   }
@@ -218,7 +234,9 @@ class WatchlistService {
       this.triggerCloudSync();
       return true;
     } catch (error) {
-      console.error('Error clearing watchlist:', error);
+      reportError('WatchlistService.clearWatchlist', error, {
+        fallbackMessage: 'Unable to clear your watchlist.',
+      });
       return false;
     }
   }
@@ -228,7 +246,9 @@ class WatchlistService {
       const progressJson = await AsyncStorage.getItem(WATCH_PROGRESS_STORAGE_KEY);
       return progressJson ? JSON.parse(progressJson) : {};
     } catch (error) {
-      console.error('Error loading watch progress:', error);
+      reportError('WatchlistService.getProgressMap', error, {
+        fallbackMessage: 'Unable to load watch progress.',
+      });
       return {};
     }
   }
@@ -242,7 +262,9 @@ class WatchlistService {
       const historyJson = await AsyncStorage.getItem(WATCH_HISTORY_STORAGE_KEY);
       return historyJson ? JSON.parse(historyJson) : {};
     } catch (error) {
-      console.error('Error loading watch history:', error);
+      reportError('WatchlistService.getHistoryMap', error, {
+        fallbackMessage: 'Unable to load watch history.',
+      });
       return {};
     }
   }
@@ -302,7 +324,9 @@ class WatchlistService {
       this.triggerCloudSync();
       return true;
     } catch (error) {
-      console.error('Error setting last watched episode:', error);
+      reportError('WatchlistService.setLastWatchedEpisode', error, {
+        fallbackMessage: 'Unable to save watch progress.',
+      });
       return false;
     }
   }
@@ -319,7 +343,9 @@ class WatchlistService {
 
       return true;
     } catch (error) {
-      console.error('Error clearing last watched episode:', error);
+      reportError('WatchlistService.clearLastWatchedEpisode', error, {
+        fallbackMessage: 'Unable to clear watch progress.',
+      });
       return false;
     }
   }
@@ -336,7 +362,9 @@ class WatchlistService {
 
       return true;
     } catch (error) {
-      console.error('Error clearing watch history:', error);
+      reportError('WatchlistService.clearWatchHistory', error, {
+        fallbackMessage: 'Unable to clear watch history.',
+      });
       return false;
     }
   }

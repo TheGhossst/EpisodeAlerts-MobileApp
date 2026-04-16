@@ -23,6 +23,11 @@ import type { SettingOption, SettingSection } from '@/app/components/settings/_t
 import SettingsOptionItem from '@/app/components/settings/SettingsOptionItem';
 import SettingsSectionHeader from '@/app/components/settings/SettingsSectionHeader';
 import { buildSettingsSections } from '@/app/components/settings/_buildSettingsSections';
+import {
+  getFirebaseErrorCode as extractFirebaseErrorCode,
+  reportError,
+  showErrorAlert,
+} from '@/app/utils/errorHandling';
 
 type AuthMode = 'signIn' | 'signUp';
 
@@ -32,17 +37,8 @@ type AuthFeedback = {
   code: string | null;
 };
 
-function getFirebaseErrorCode(error: unknown): string | null {
-  if (!error || typeof error !== 'object') {
-    return null;
-  }
-
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
 function getAuthFeedback(error: unknown, mode: AuthMode): AuthFeedback {
-  const code = getFirebaseErrorCode(error);
+  const code = extractFirebaseErrorCode(error);
   const notConfiguredMessage = 'Cloud sync is not available in this build.';
 
   if (typeof error === 'object' && error && 'message' in error) {
@@ -168,29 +164,36 @@ export default function SettingsScreen() {
   }, []);
 
   const refreshCloudSyncStatus = async () => {
-    await CloudSyncService.initialize();
+    try {
+      await CloudSyncService.initialize();
 
-    const available = CloudSyncService.isAvailable();
-    setCloudSyncAvailable(available);
+      const available = CloudSyncService.isAvailable();
+      setCloudSyncAvailable(available);
 
-    if (!available) {
-      setCloudSyncSignedIn(false);
-      setCloudSyncUserEmail(null);
-      setCloudSyncStatusText('Cloud sync is disabled in this build');
-      return;
+      if (!available) {
+        setCloudSyncSignedIn(false);
+        setCloudSyncUserEmail(null);
+        setCloudSyncStatusText('Cloud sync is disabled in this build');
+        return;
+      }
+
+      const [signedIn, email, lastSyncAt] = await Promise.all([
+        CloudSyncService.isSignedIn(),
+        CloudSyncService.getCurrentUserEmail(),
+        CloudSyncService.getLastSyncTime(),
+      ]);
+
+      setCloudSyncSignedIn(signedIn);
+      setCloudSyncUserEmail(email);
+      setCloudSyncStatusText(
+        lastSyncAt ? `Last synced ${new Date(lastSyncAt).toLocaleString()}` : 'Not synced yet',
+      );
+    } catch (error) {
+      const appError = reportError('SettingsScreen.refreshCloudSyncStatus', error, {
+        fallbackMessage: 'Could not refresh cloud sync status.',
+      });
+      setCloudSyncStatusText(appError.message);
     }
-
-    const [signedIn, email, lastSyncAt] = await Promise.all([
-      CloudSyncService.isSignedIn(),
-      CloudSyncService.getCurrentUserEmail(),
-      CloudSyncService.getLastSyncTime(),
-    ]);
-
-    setCloudSyncSignedIn(signedIn);
-    setCloudSyncUserEmail(email);
-    setCloudSyncStatusText(
-      lastSyncAt ? `Last synced ${new Date(lastSyncAt).toLocaleString()}` : 'Not synced yet',
-    );
   };
 
   const loadSettings = async () => {
@@ -210,7 +213,9 @@ export default function SettingsScreen() {
 
       await AnalyticsService.trackScreenView('settings');
     } catch (error) {
-      console.error('Error loading settings:', error);
+      reportError('SettingsScreen.loadSettings', error, {
+        fallbackMessage: 'Failed to load settings.',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -271,7 +276,13 @@ export default function SettingsScreen() {
       );
     } catch (error) {
       const feedback = getAuthFeedback(error, authMode);
-      console.warn('Auth request failed:', feedback.code || 'unknown');
+      reportError('SettingsScreen.handleAuthSubmit', error, {
+        fallbackMessage: feedback.message,
+        metadata: {
+          authMode,
+          firebaseCode: feedback.code || 'unknown',
+        },
+      });
       setAuthFeedback(feedback);
     } finally {
       setIsAuthSubmitting(false);
@@ -285,8 +296,10 @@ export default function SettingsScreen() {
       await refreshCloudSyncStatus();
       Alert.alert('Synced', 'Local data uploaded to cloud successfully.');
     } catch (error) {
-      console.error('Cloud upload error:', error);
-      Alert.alert('Upload Failed', 'Please sign in and try again.');
+      showErrorAlert('SettingsScreen.handleSyncUpload', error, {
+        title: 'Upload Failed',
+        fallbackMessage: 'Please sign in and try again.',
+      });
     } finally {
       setIsCloudSyncBusy(false);
     }
@@ -306,8 +319,10 @@ export default function SettingsScreen() {
           : 'No synced data was found for this account.',
       );
     } catch (error) {
-      console.error('Cloud download error:', error);
-      Alert.alert('Download Failed', 'Please sign in and try again.');
+      showErrorAlert('SettingsScreen.handleSyncDownload', error, {
+        title: 'Download Failed',
+        fallbackMessage: 'Please sign in and try again.',
+      });
     } finally {
       setIsCloudSyncBusy(false);
     }
@@ -320,8 +335,10 @@ export default function SettingsScreen() {
       await refreshCloudSyncStatus();
       Alert.alert('Signed Out', 'Cloud sync has been disabled for this device.');
     } catch (error) {
-      console.error('Cloud sign-out error:', error);
-      Alert.alert('Sign Out Failed', 'Please try again.');
+      showErrorAlert('SettingsScreen.handleSignOut', error, {
+        title: 'Sign Out Failed',
+        fallbackMessage: 'Please try again.',
+      });
     } finally {
       setIsCloudSyncBusy(false);
     }
@@ -350,8 +367,10 @@ export default function SettingsScreen() {
         );
       }
     } catch (error) {
-      console.error('Error toggling notifications:', error);
-      Alert.alert('Error', 'Failed to update notification settings');
+      showErrorAlert('SettingsScreen.handleNotificationToggle', error, {
+        title: 'Update Failed',
+        fallbackMessage: 'Failed to update notification settings.',
+      });
       setNotificationsEnabled(UserPreferencesService.isNotificationsEnabled());
     }
   };
@@ -368,8 +387,10 @@ export default function SettingsScreen() {
         });
       }
     } catch (error) {
-      console.error('Error toggling analytics:', error);
-      Alert.alert('Error', 'Failed to update analytics settings');
+      showErrorAlert('SettingsScreen.handleAnalyticsToggle', error, {
+        title: 'Update Failed',
+        fallbackMessage: 'Failed to update analytics settings.',
+      });
       setAnalyticsEnabled(UserPreferencesService.isAnalyticsEnabled());
     }
   };
@@ -388,8 +409,10 @@ export default function SettingsScreen() {
         await clearImageCache();
       }
     } catch (error) {
-      console.error('Error toggling image cache:', error);
-      Alert.alert('Error', 'Failed to update image cache settings');
+      showErrorAlert('SettingsScreen.handleImageCacheToggle', error, {
+        title: 'Update Failed',
+        fallbackMessage: 'Failed to update image cache settings.',
+      });
     }
   };
 
@@ -399,8 +422,10 @@ export default function SettingsScreen() {
 
       await AnalyticsService.trackEvent(EventType.CHANGE_THEME, { theme: themeMode });
     } catch (error) {
-      console.error('Error changing theme:', error);
-      Alert.alert('Error', 'Failed to update theme settings');
+      showErrorAlert('SettingsScreen.handleThemeChange', error, {
+        title: 'Update Failed',
+        fallbackMessage: 'Failed to update theme settings.',
+      });
     }
   };
 
@@ -410,7 +435,9 @@ export default function SettingsScreen() {
       const sizeMB = ImageCacheService.getCacheSizeInMB();
       setCacheSizeText(`${sizeMB} MB`);
     } catch (error) {
-      console.error('Error calculating cache size:', error);
+      reportError('SettingsScreen.calculateCacheSize', error, {
+        fallbackMessage: 'Failed to calculate cache size.',
+      });
       setCacheSizeText('Unknown');
     }
   };
@@ -425,8 +452,10 @@ export default function SettingsScreen() {
 
       Alert.alert('Success', 'Image cache cleared');
     } catch (error) {
-      console.error('Error clearing cache:', error);
-      Alert.alert('Error', 'Failed to clear image cache');
+      showErrorAlert('SettingsScreen.clearImageCache', error, {
+        title: 'Clear Failed',
+        fallbackMessage: 'Failed to clear image cache.',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -454,8 +483,10 @@ export default function SettingsScreen() {
 
               Alert.alert('Success', 'Preferences reset to defaults');
             } catch (error) {
-              console.error('Error resetting preferences:', error);
-              Alert.alert('Error', 'Failed to reset preferences');
+              showErrorAlert('SettingsScreen.resetPreferences', error, {
+                title: 'Reset Failed',
+                fallbackMessage: 'Failed to reset preferences.',
+              });
             } finally {
               setIsLoading(false);
             }
