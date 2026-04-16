@@ -8,11 +8,13 @@
 \usepackage{fancyhdr}
 \usepackage{xcolor}
 \usepackage{graphicx}
+\usepackage{float}
 \graphicspath{{images/}}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{enumitem}
+\usepackage{placeins}
 \usepackage{listings}
 \usepackage{hyperref}
 
@@ -29,7 +31,7 @@
   urlcolor=ReportAccent,
   citecolor=ReportAccent,
   pdftitle={Episode Alerts Project Report},
-  pdfauthor={Your Name}
+  pdfauthor={Nandu Krishna M 25CSE2015}
 }
 
 \titleformat{\chapter}[display]
@@ -121,6 +123,12 @@
 \clearpage
 \pagenumbering{arabic}
 
+\chapter{Introduction}
+\input{sections/introduction}
+
+\chapter{Background (Related Work)}
+\input{sections/background}
+
 \chapter{SRS}
 \input{sections/srs}
 
@@ -132,5 +140,9 @@
 
 \chapter{Results}
 \input{sections/results}
+
+\chapter*{References}
+\addcontentsline{toc}{chapter}{References}
+\input{sections/references}
 
 \end{document}

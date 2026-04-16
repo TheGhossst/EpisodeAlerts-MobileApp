@@ -1,0 +1,12 @@
+\section{Background}
+TV tracking is fragmented when users have to move between search, release calendars, watchlists, and reminders. Episode Alerts addresses that by combining show discovery, show details, watchlist management, notifications, and cached fallback behavior in one mobile app.
+
+\section{Related Work}
+A recent App Store release, \href{https://apps.apple.com/au/app/cinesync-tracker/id6757942706}{CineSync Tracker}, follows the same core direction: a unified movie and TV watchlist, a release calendar, search/discovery, and a minimalist interface.
+
+The original Expo post by the app author, \href{https://www.reddit.com/r/expo/comments/1qnsnye/i_got_sick_of_movie_apps_feeling_like_adfilled/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1}{this post}, presents CineSync Tracker as a free minimalist alternative built with Expo and designed around utility.
+
+The follow-up comment exchange, \href{https://www.reddit.com/r/expo/comments/1qnsnye/comment/o2ervfs/?context=3}{this thread}, confirms TMDB as the data source and notes the free-tier limit of about 40 requests every 10 seconds. That supports a cache-first design and fallback handling in Episode Alerts.
+
+\section{Project Positioning}
+Episode Alerts is TV-first, cache-aware, and focused on practical tracking rather than general catalog browsing.
